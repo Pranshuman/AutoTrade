@@ -24,9 +24,20 @@
             </div>
             
             <div id="register-form" class="auth-form" style="display: none;">
+                <h3 style="margin-bottom: 15px; color: #667eea;">Create Account</h3>
                 <input type="text" id="register-username" placeholder="Username" required>
                 <input type="password" id="register-password" placeholder="Password" required>
-                <button onclick="handleRegister()">Register</button>
+                
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+                    <h4 style="margin: 0 0 10px 0; color: #555;">Zerodha Kite Credentials</h4>
+                    <p style="font-size: 12px; color: #666; margin-bottom: 15px;">
+                        Get these from <a href="https://kite.trade/connect/apps" target="_blank" style="color: #3498db;">Zerodha Kite Connect</a> → My Apps
+                    </p>
+                    <input type="text" id="register-api-key" placeholder="API Key" required>
+                    <input type="password" id="register-api-secret" placeholder="API Secret" required>
+                </div>
+                
+                <button onclick="handleRegister()">Register & Continue</button>
                 <div id="register-error" class="error-message"></div>
             </div>
         </div>
