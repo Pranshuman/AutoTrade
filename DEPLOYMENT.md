@@ -17,10 +17,10 @@ This guide explains how to deploy your live trading strategy to Railway and Verc
 
 ### Step 1: Prepare Your Repository
 
-1. **API Credentials**:
-   - Your current `vwap_rsi_live_strategy.ts` has hardcoded credentials
-   - For production, consider updating the file to read from environment variables
-   - For now, the credentials in the file will be used (ensure they're valid)
+1. **Web Interface**: 
+   - The app now includes a web interface at `index.html`
+   - Users can register/login and enter their own credentials
+   - Each user's credentials are stored securely in SQLite database
 
 2. **Commit and push to GitHub**:
    ```bash
@@ -55,7 +55,8 @@ This guide explains how to deploy your live trading strategy to Railway and Verc
 
 Railway should auto-detect Bun, but verify:
 - **Build Command**: `bun install`
-- **Start Command**: `bun run vwap_rsi_live_strategy.ts`
+- **Start Command**: `bun run server.ts` (for the web interface)
+- The web server runs on port 3000 (or Railway's assigned PORT)
 
 ### Step 5: Deploy
 

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoTrade - VWAP RSI Strategy</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Login/Register Section -->
+        <div id="auth-section" class="section">
+            <h1>🚀 AutoTrade</h1>
+            <div class="auth-tabs">
+                <button class="tab-btn active" onclick="showLogin()">Login</button>
+                <button class="tab-btn" onclick="showRegister()">Register</button>
+            </div>
+            
+            <div id="login-form" class="auth-form">
+                <input type="text" id="login-username" placeholder="Username" required>
+                <input type="password" id="login-password" placeholder="Password" required>
+                <button onclick="handleLogin()">Login</button>
+                <div id="auth-error" class="error-message"></div>
+            </div>
+            
+            <div id="register-form" class="auth-form" style="display: none;">
+                <input type="text" id="register-username" placeholder="Username" required>
+                <input type="password" id="register-password" placeholder="Password" required>
+                <button onclick="handleRegister()">Register</button>
+                <div id="register-error" class="error-message"></div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard (hidden until login) -->
+        <div id="dashboard" class="section" style="display: none;">
+            <div class="header">
+                <h1>📈 AutoTrade Dashboard</h1>
+                <button class="logout-btn" onclick="handleLogout()">Logout</button>
+            </div>
+
+            <!-- Credentials Section -->
+            <div class="card">
+                <h2>🔐 Zerodha Kite Credentials</h2>
+                <div id="credentials-status" class="status-badge"></div>
+                <form id="credentials-form" onsubmit="handleSaveCredentials(event)">
+                    <input type="text" id="api-key" placeholder="API Key" required>
+                    <input type="password" id="api-secret" placeholder="API Secret" required>
+                    <input type="password" id="access-token" placeholder="Access Token" required>
+                    <button type="submit">Save Credentials</button>
+                </form>
+                <div id="credentials-error" class="error-message"></div>
+                <div id="credentials-success" class="success-message"></div>
+            </div>
+
+            <!-- Strategy Control Section -->
+            <div class="card">
+                <h2>⚙️ Strategy Control</h2>
+                <div id="strategy-status" class="status-display">
+                    <span class="status-label">Status:</span>
+                    <span id="status-value" class="status-value">Loading...</span>
+                </div>
+                <div class="button-group">
+                    <button id="start-btn" onclick="handleStartStrategy()" disabled>Start Strategy</button>
+                    <button id="stop-btn" onclick="handleStopStrategy()" disabled>Stop Strategy</button>
+                </div>
+                <div id="strategy-error" class="error-message"></div>
+                <div id="strategy-success" class="success-message"></div>
+            </div>
+
+            <!-- Info Section -->
+            <div class="card info-card">
+                <h2>ℹ️ Information</h2>
+                <ul>
+                    <li><strong>Strategy:</strong> VWAP RSI Live Trading</li>
+                    <li><strong>Trading Hours:</strong> 9:15 AM - 3:20 PM IST</li>
+                    <li><strong>Entry Time:</strong> After 10:00 AM</li>
+                    <li><strong>Strike Selection:</strong> ATM ± 150 points at 9:20 AM</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

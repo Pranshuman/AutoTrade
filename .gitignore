@@ -6,10 +6,18 @@ bun.lockb
 .env
 .env.local
 
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
 # Logs and output files
 *.csv
 *.svg
 *.log
+
+# Temporary strategy files
+vwap_rsi_live_strategy_user_*.ts
 
 # OS files
 .DS_Store

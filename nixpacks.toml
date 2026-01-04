@@ -2,7 +2,7 @@
 # This ensures Bun is used as the runtime
 
 [phases.setup]
-nixPkgs = ["nodejs-18_x", "bun"]
+nixPkgs = ["nodejs-20_x", "bun"]
 
 [phases.install]
 cmds = ["bun install"]
@@ -11,5 +11,5 @@ cmds = ["bun install"]
 cmds = ["echo 'Build complete'"]
 
 [start]
-cmd = "bun run vwap_rsi_live_strategy.ts"
+cmd = "bun run server.ts"
 

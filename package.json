@@ -1,7 +1,11 @@
 {
   "name": "autotrade",
-  "module": "index.ts",
+  "module": "server.ts",
   "type": "module",
+  "scripts": {
+    "start": "bun run server.ts",
+    "dev": "bun run server.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
