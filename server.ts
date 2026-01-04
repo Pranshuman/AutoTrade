@@ -1,50 +1,72 @@
 /**
- * Backend API Server for AutoTrade
+ * Backend API Server for AutoTrade with Supabase
  * Handles user authentication, credential management, and strategy control
  */
 
-import { Database } from "bun:sqlite";
+import { createClient } from "@supabase/supabase-js";
 import { serve } from "bun";
 import { join } from "path";
 import { readFile } from "fs/promises";
 
-// Database setup
-const db = new Database("autotrade.db");
+// Supabase setup
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_ANON_KEY || "";
 
-// Initialize database tables
-db.run(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
+if (!supabaseUrl || !supabaseKey) {
+  console.error("❌ Missing Supabase credentials. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
+  console.error("   Falling back to SQLite for local development...");
+}
 
-db.run(`
-  CREATE TABLE IF NOT EXISTS credentials (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    api_key TEXT NOT NULL,
-    api_secret TEXT NOT NULL,
-    access_token TEXT NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  )
-`);
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-db.run(`
-  CREATE TABLE IF NOT EXISTS strategy_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    started_at DATETIME,
-    stopped_at DATETIME,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  )
-`);
+// Fallback to SQLite for local development
+let sqliteDb: any = null;
+if (!supabase) {
+  try {
+    const { Database } = require("bun:sqlite");
+    sqliteDb = new Database("autotrade.db");
+    
+    sqliteDb.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    sqliteDb.run(`
+      CREATE TABLE IF NOT EXISTS credentials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        api_key TEXT NOT NULL,
+        api_secret TEXT NOT NULL,
+        access_token TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    
+    sqliteDb.run(`
+      CREATE TABLE IF NOT EXISTS strategy_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        started_at DATETIME,
+        stopped_at DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    
+    console.log("✅ SQLite database initialized (fallback mode)");
+  } catch (err) {
+    console.error("❌ Failed to initialize SQLite:", err);
+  }
+} else {
+  console.log("✅ Supabase client initialized");
+}
 
-// Simple password hashing (use bcrypt in production)
+// Simple password hashing
 function hashPassword(password: string): string {
   return Bun.password.hashSync(password);
 }
@@ -142,27 +164,51 @@ const server = serve({
 
         try {
           const passwordHash = hashPassword(password);
-          const result = db.query("INSERT INTO users (username, password_hash) VALUES (?, ?) RETURNING id, username").get(username, passwordHash) as any;
           
-          if (!result) {
-            return new Response(JSON.stringify({ error: "Failed to create user" }), {
-              status: 500,
+          if (supabase) {
+            // Use Supabase
+            const { data, error } = await supabase
+              .from("users")
+              .insert({ username, password_hash: passwordHash })
+              .select("id, username")
+              .single();
+            
+            if (error) {
+              if (error.code === "23505") { // Unique constraint violation
+                return new Response(JSON.stringify({ error: "Username already exists" }), {
+                  status: 400,
+                  headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+              }
+              throw error;
+            }
+            
+            const token = generateToken(data.id, data.username);
+            return new Response(JSON.stringify({ token, user: { id: data.id, username: data.username } }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          } else {
+            // Fallback to SQLite
+            const result = sqliteDb.query("INSERT INTO users (username, password_hash) VALUES (?, ?) RETURNING id, username").get(username, passwordHash) as any;
+            if (!result) {
+              return new Response(JSON.stringify({ error: "Failed to create user" }), {
+                status: 500,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+            const token = generateToken(result.id, result.username);
+            return new Response(JSON.stringify({ token, user: { id: result.id, username: result.username } }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
-
-          const token = generateToken(result.id, result.username);
-          return new Response(JSON.stringify({ token, user: { id: result.id, username: result.username } }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
         } catch (err: any) {
-          if (err.message.includes("UNIQUE")) {
+          if (err.message?.includes("UNIQUE") || err.code === "23505") {
             return new Response(JSON.stringify({ error: "Username already exists" }), {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
-          return new Response(JSON.stringify({ error: err.message }), {
+          return new Response(JSON.stringify({ error: err.message || "Registration failed" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -173,18 +219,46 @@ const server = serve({
         const body = await req.json();
         const { username, password } = body;
 
-        const user = db.query("SELECT id, username, password_hash FROM users WHERE username = ?").get(username) as any;
-        if (!user || !verifyPassword(password, user.password_hash)) {
-          return new Response(JSON.stringify({ error: "Invalid credentials" }), {
-            status: 401,
+        try {
+          let userData: any = null;
+          
+          if (supabase) {
+            // Use Supabase
+            const { data, error } = await supabase
+              .from("users")
+              .select("id, username, password_hash")
+              .eq("username", username)
+              .single();
+            
+            if (error || !data) {
+              return new Response(JSON.stringify({ error: "Invalid credentials" }), {
+                status: 401,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+            userData = data;
+          } else {
+            // Fallback to SQLite
+            userData = sqliteDb.query("SELECT id, username, password_hash FROM users WHERE username = ?").get(username) as any;
+          }
+          
+          if (!userData || !verifyPassword(password, userData.password_hash)) {
+            return new Response(JSON.stringify({ error: "Invalid credentials" }), {
+              status: 401,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          const token = generateToken(userData.id, userData.username);
+          return new Response(JSON.stringify({ token, user: { id: userData.id, username: userData.username } }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: "Login failed" }), {
+            status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-
-        const token = generateToken(user.id, user.username);
-        return new Response(JSON.stringify({ token, user: { id: user.id, username: user.username } }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
       }
 
       // Protected routes
@@ -196,15 +270,46 @@ const server = serve({
       }
 
       if (path === "/api/credentials" && method === "GET") {
-        const creds = db.query("SELECT api_key, api_secret, access_token, updated_at FROM credentials WHERE user_id = ?").get(user.userId) as any;
-        if (!creds) {
-          return new Response(JSON.stringify({ credentials: null }), {
+        try {
+          let creds: any = null;
+          
+          if (supabase) {
+            const { data, error } = await supabase
+              .from("credentials")
+              .select("api_key, api_secret, access_token, updated_at")
+              .eq("user_id", user.userId)
+              .single();
+            
+            if (error && error.code !== "PGRST116") { // PGRST116 = no rows returned
+              throw error;
+            }
+            creds = data;
+          } else {
+            creds = sqliteDb.query("SELECT api_key, api_secret, access_token, updated_at FROM credentials WHERE user_id = ?").get(user.userId) as any;
+          }
+          
+          if (!creds) {
+            return new Response(JSON.stringify({ credentials: null }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          
+          return new Response(JSON.stringify({ 
+            credentials: { 
+              apiKey: creds.api_key, 
+              apiSecret: creds.api_secret, 
+              accessToken: creds.access_token, 
+              updatedAt: creds.updated_at 
+            } 
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: "Failed to fetch credentials" }), {
+            status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        return new Response(JSON.stringify({ credentials: { apiKey: creds.api_key, apiSecret: creds.api_secret, accessToken: creds.access_token, updatedAt: creds.updated_at } }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
       }
 
       if (path === "/api/credentials" && method === "POST") {
@@ -218,70 +323,167 @@ const server = serve({
           });
         }
 
-        // Check if credentials exist
-        const existing = db.query("SELECT id FROM credentials WHERE user_id = ?").get(user.userId) as any;
-        
-        if (existing) {
-          db.run("UPDATE credentials SET api_key = ?, api_secret = ?, access_token = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?", apiKey, apiSecret, accessToken, user.userId);
-        } else {
-          db.run("INSERT INTO credentials (user_id, api_key, api_secret, access_token) VALUES (?, ?, ?, ?)", user.userId, apiKey, apiSecret, accessToken);
-        }
+        try {
+          if (supabase) {
+            // Check if credentials exist
+            const { data: existing } = await supabase
+              .from("credentials")
+              .select("id")
+              .eq("user_id", user.userId)
+              .single();
+            
+            if (existing) {
+              // Update
+              await supabase
+                .from("credentials")
+                .update({ 
+                  api_key: apiKey, 
+                  api_secret: apiSecret, 
+                  access_token: accessToken,
+                  updated_at: new Date().toISOString()
+                })
+                .eq("user_id", user.userId);
+            } else {
+              // Insert
+              await supabase
+                .from("credentials")
+                .insert({ 
+                  user_id: user.userId,
+                  api_key: apiKey, 
+                  api_secret: apiSecret, 
+                  access_token: accessToken 
+                });
+            }
+          } else {
+            // SQLite fallback
+            const existing = sqliteDb.query("SELECT id FROM credentials WHERE user_id = ?").get(user.userId) as any;
+            if (existing) {
+              sqliteDb.run("UPDATE credentials SET api_key = ?, api_secret = ?, access_token = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?", apiKey, apiSecret, accessToken, user.userId);
+            } else {
+              sqliteDb.run("INSERT INTO credentials (user_id, api_key, api_secret, access_token) VALUES (?, ?, ?, ?)", user.userId, apiKey, apiSecret, accessToken);
+            }
+          }
 
-        return new Response(JSON.stringify({ success: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: "Failed to save credentials" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
 
       if (path === "/api/strategy/status" && method === "GET") {
-        const strategy = activeStrategies.get(user.userId);
-        const session = db.query("SELECT status, started_at, stopped_at FROM strategy_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(user.userId) as any;
-        
-        return new Response(JSON.stringify({ 
-          status: strategy?.status || session?.status || "stopped",
-          startedAt: session?.started_at || null,
-          stoppedAt: session?.stopped_at || null,
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        try {
+          const strategy = activeStrategies.get(user.userId);
+          let session: any = null;
+          
+          if (supabase) {
+            const { data } = await supabase
+              .from("strategy_sessions")
+              .select("status, started_at, stopped_at")
+              .eq("user_id", user.userId)
+              .order("id", { ascending: false })
+              .limit(1)
+              .single();
+            session = data;
+          } else {
+            session = sqliteDb.query("SELECT status, started_at, stopped_at FROM strategy_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(user.userId) as any;
+          }
+          
+          return new Response(JSON.stringify({ 
+            status: strategy?.status || session?.status || "stopped",
+            startedAt: session?.started_at || null,
+            stoppedAt: session?.stopped_at || null,
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ 
+            status: activeStrategies.get(user.userId)?.status || "stopped",
+            startedAt: null,
+            stoppedAt: null,
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
 
       if (path === "/api/strategy/start" && method === "POST") {
-        // Check if credentials exist
-        const creds = db.query("SELECT api_key, api_secret, access_token FROM credentials WHERE user_id = ?").get(user.userId) as any;
-        if (!creds) {
-          return new Response(JSON.stringify({ error: "Please set your credentials first" }), {
-            status: 400,
+        try {
+          // Check if credentials exist
+          let creds: any = null;
+          
+          if (supabase) {
+            const { data, error } = await supabase
+              .from("credentials")
+              .select("api_key, api_secret, access_token")
+              .eq("user_id", user.userId)
+              .single();
+            
+            if (error || !data) {
+              return new Response(JSON.stringify({ error: "Please set your credentials first" }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+            creds = data;
+          } else {
+            creds = sqliteDb.query("SELECT api_key, api_secret, access_token FROM credentials WHERE user_id = ?").get(user.userId) as any;
+            if (!creds) {
+              return new Response(JSON.stringify({ error: "Please set your credentials first" }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          }
+
+          // Check if already running
+          if (activeStrategies.has(user.userId)) {
+            return new Response(JSON.stringify({ error: "Strategy already running" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          // Start strategy in background
+          const strategyProcess = Bun.spawn(["bun", "run", "vwap_rsi_live_strategy_user.ts", String(user.userId)], {
+            env: {
+              ...process.env,
+              KITE_API_KEY: creds.api_key,
+              KITE_API_SECRET: creds.api_secret,
+              KITE_ACCESS_TOKEN: creds.access_token,
+            },
+            stdout: "pipe",
+            stderr: "pipe",
+          });
+
+          activeStrategies.set(user.userId, { process: strategyProcess, status: "running" });
+          
+          // Save session
+          if (supabase) {
+            await supabase
+              .from("strategy_sessions")
+              .insert({ 
+                user_id: user.userId, 
+                status: "running", 
+                started_at: new Date().toISOString() 
+              });
+          } else {
+            sqliteDb.run("INSERT INTO strategy_sessions (user_id, status, started_at) VALUES (?, ?, CURRENT_TIMESTAMP)", user.userId, "running");
+          }
+
+          return new Response(JSON.stringify({ success: true, message: "Strategy started" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: "Failed to start strategy" }), {
+            status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-
-        // Check if already running
-        if (activeStrategies.has(user.userId)) {
-          return new Response(JSON.stringify({ error: "Strategy already running" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        // Start strategy in background
-        const strategyProcess = Bun.spawn(["bun", "run", "vwap_rsi_live_strategy_user.ts", String(user.userId)], {
-          env: {
-            ...process.env,
-            KITE_API_KEY: creds.api_key,
-            KITE_API_SECRET: creds.api_secret,
-            KITE_ACCESS_TOKEN: creds.access_token,
-          },
-          stdout: "pipe",
-          stderr: "pipe",
-        });
-
-        activeStrategies.set(user.userId, { process: strategyProcess, status: "running" });
-        
-        db.run("INSERT INTO strategy_sessions (user_id, status, started_at) VALUES (?, ?, CURRENT_TIMESTAMP)", user.userId, "running");
-
-        return new Response(JSON.stringify({ success: true, message: "Strategy started" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
       }
 
       if (path === "/api/strategy/stop" && method === "POST") {
@@ -296,7 +498,19 @@ const server = serve({
         strategy.process.kill();
         activeStrategies.delete(user.userId);
         
-        db.run("UPDATE strategy_sessions SET status = 'stopped', stopped_at = CURRENT_TIMESTAMP WHERE user_id = ? AND status = 'running'", user.userId);
+        // Update session
+        if (supabase) {
+          await supabase
+            .from("strategy_sessions")
+            .update({ 
+              status: "stopped", 
+              stopped_at: new Date().toISOString() 
+            })
+            .eq("user_id", user.userId)
+            .eq("status", "running");
+        } else {
+          sqliteDb.run("UPDATE strategy_sessions SET status = 'stopped', stopped_at = CURRENT_TIMESTAMP WHERE user_id = ? AND status = 'running'", user.userId);
+        }
 
         return new Response(JSON.stringify({ success: true, message: "Strategy stopped" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -314,4 +528,8 @@ const server = serve({
 });
 
 console.log(`🚀 AutoTrade API Server running on http://localhost:${server.port}`);
-
+if (supabase) {
+  console.log(`✅ Using Supabase database`);
+} else {
+  console.log(`⚠️  Using SQLite (fallback mode - set SUPABASE_URL and SUPABASE_ANON_KEY for production)`);
+}
