@@ -147,8 +147,15 @@ const server = serve({
       "Access-Control-Max-Age": "86400", // 24 hours
     };
 
+    // Handle preflight OPTIONS request
     if (method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { 
+        status: 204,
+        headers: {
+          ...corsHeaders,
+          "Content-Length": "0",
+        }
+      });
     }
 
     // Static files
