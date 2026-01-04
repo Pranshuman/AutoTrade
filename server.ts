@@ -576,7 +576,8 @@ const server = serve({
   },
 });
 
-console.log(`🚀 AutoTrade API Server running on http://localhost:${server.port}`);
+console.log(`🚀 AutoTrade API Server running on 0.0.0.0:${server.port}`);
+console.log(`🌐 Public URL: https://autotrade-api.railway.app (via Railway proxy)`);
 console.log(`📊 CORS Debugging: ENABLED - All requests will be logged`);
 console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
 if (supabase) {
