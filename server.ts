@@ -122,27 +122,13 @@ const server = serve({
     const path = url.pathname;
     const method = req.method;
 
-    // CORS headers - Allow specific origins
+    // CORS headers - Allow all origins to avoid Railway proxy conflicts
+    // Railway's proxy may add its own CORS headers, so we use * to ensure compatibility
     const origin = req.headers.get("origin");
-    const allowedOrigins = process.env.ALLOWED_ORIGINS 
-      ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
-      : [
-          "https://autotrade1234.vercel.app",
-          "https://autotrade.vercel.app",
-          "http://localhost:3000",
-          "http://localhost:5173",
-          "http://127.0.0.1:3000",
-        ];
-    
-    // Allow origin if it's in the list, or allow all for development
-    const allowOrigin = origin && allowedOrigins.includes(origin) 
-      ? origin 
-      : (process.env.NODE_ENV === "production" ? allowedOrigins[0] : "*");
-    
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": allowOrigin,
+    const corsHeaders: Record<string, string> = {
+      "Access-Control-Allow-Origin": origin || "*", // Use the actual origin if provided
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
       "Access-Control-Allow-Credentials": "true",
       "Access-Control-Max-Age": "86400", // 24 hours
     };
