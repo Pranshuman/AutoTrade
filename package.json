@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "bun run server.ts",
-    "dev": "bun run server.ts"
+    "dev": "bun run server.ts",
+    "kite-auth": "bun run kite_auth_flow.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

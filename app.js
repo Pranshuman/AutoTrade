@@ -26,7 +26,24 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         showAuth();
     }
+    
+    // Set up Kite login URL link
+    setupKiteLoginLink();
 });
+
+// Setup Kite Connect login URL
+function setupKiteLoginLink() {
+    const loginLink = document.getElementById('kite-login-link');
+    if (loginLink) {
+        // This will be set when user is logged in and we can fetch from API
+        // For now, use a placeholder - user needs to run kite_auth_flow.ts locally
+        loginLink.href = '#';
+        loginLink.onclick = (e) => {
+            e.preventDefault();
+            alert('To get your access token:\n\n1. Run locally: bun run kite_auth_flow.ts\n2. Or visit: https://kite.trade/connect/login?api_key=YOUR_API_KEY\n\nSee the instructions above for details.');
+        };
+    }
+}
 
 // Auth functions
 function showLogin() {

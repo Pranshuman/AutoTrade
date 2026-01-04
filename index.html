@@ -42,6 +42,27 @@
             <div class="card">
                 <h2>🔐 Zerodha Kite Credentials</h2>
                 <div id="credentials-status" class="status-badge"></div>
+                
+                <!-- Help Section -->
+                <div class="help-section" style="background: #e8f4f8; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3498db;">
+                    <h3 style="margin-top: 0; color: #2980b9;">📖 How to Get Your Access Token:</h3>
+                    <ol style="margin: 10px 0; padding-left: 20px; color: #555;">
+                        <li><strong>Get API Key & Secret:</strong> From Zerodha Kite Connect app settings</li>
+                        <li><strong>Generate Access Token:</strong>
+                            <ul style="margin-top: 5px;">
+                                <li>Run locally: <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">bun run kite_auth_flow.ts</code></li>
+                                <li>Or use the <a href="#" id="kite-login-link" target="_blank" style="color: #3498db;">Zerodha Login URL</a></li>
+                                <li>After login, copy the <code>request_token</code> from the redirect URL</li>
+                                <li>Use it to generate your access token</li>
+                            </ul>
+                        </li>
+                        <li><strong>Enter Credentials:</strong> Paste all three values below</li>
+                    </ol>
+                    <p style="margin: 10px 0 0 0; color: #e74c3c; font-size: 14px;">
+                        ⚠️ <strong>Note:</strong> Access tokens expire daily. Regenerate when needed.
+                    </p>
+                </div>
+                
                 <form id="credentials-form" onsubmit="handleSaveCredentials(event)">
                     <input type="text" id="api-key" placeholder="API Key" required>
                     <input type="password" id="api-secret" placeholder="API Secret" required>
