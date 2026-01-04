@@ -95,6 +95,49 @@ function verifyToken(token: string): { userId: number; username: string } | null
 // Active strategy instances per user
 const activeStrategies = new Map<number, { process: any; status: string }>();
 
+// Track strategy data per user (positions, trades, prices)
+interface StrategyTracker {
+  positions: {
+    ce?: { isOpen: boolean; entryPrice: number; entryTime: string; currentPrice?: number; pnl?: number };
+    pe?: { isOpen: boolean; entryPrice: number; entryTime: string; currentPrice?: number; pnl?: number };
+  };
+  prices: {
+    cePrice?: number;
+    pePrice?: number;
+    spotPrice?: number;
+    ceVwap?: number;
+    peVwap?: number;
+    lastUpdate?: string;
+  };
+  recentTrades: Array<{
+    timestamp: string;
+    instrument: string;
+    action: string;
+    price: number;
+    quantity: number;
+    pnl?: number;
+    reason: string;
+  }>;
+  summary: {
+    totalTrades: number;
+    totalPnL: number;
+    winRate: number;
+    startedAt?: string;
+  };
+}
+
+const strategyTrackers = new Map<number, StrategyTracker>();
+
+// Initialize tracker for user
+function initTracker(userId: number) {
+  strategyTrackers.set(userId, {
+    positions: {},
+    prices: {},
+    recentTrades: [],
+    summary: { totalTrades: 0, totalPnL: 0, winRate: 0 }
+  });
+}
+
 // Serve static files
 async function serveStaticFile(path: string): Promise<Response | null> {
   try {
