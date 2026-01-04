@@ -238,12 +238,20 @@ const server = serve({
             }
             
             const token = generateToken(data.id, data.username);
-            const response = new Response(JSON.stringify({ token, user: { id: data.id, username: data.username } }), {
+            
+            // Generate Kite login URL using user's API key
+            const kc = new KiteConnect({ api_key: apiKey });
+            const loginURL = kc.getLoginURL();
+            
+            const response = new Response(JSON.stringify({ 
+              token, 
+              user: { id: data.id, username: data.username },
+              loginURL // Return login URL for the next step
+            }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
             console.log(`  ✅ Registration successful for: ${data.username}`);
-            console.log(`  📤 Response status: ${response.status}`);
-            console.log(`  📤 Response headers:`, Object.fromEntries(response.headers.entries()));
+            console.log(`  🔗 Generated Kite login URL`);
             return response;
           } else {
             // Fallback to SQLite
@@ -320,6 +328,107 @@ const server = serve({
         } catch (err: any) {
           return new Response(JSON.stringify({ error: "Login failed" }), {
             status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // Protected routes - Generate access token from request token
+      if (path === "/api/generate-access-token" && method === "POST") {
+        // This endpoint requires authentication
+        if (!user) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const body = await req.json();
+        const { requestToken, apiKey, apiSecret } = body;
+
+        if (!requestToken || !apiKey || !apiSecret) {
+          return new Response(JSON.stringify({ error: "Request token, API key, and API secret are required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        try {
+          console.log(`  🔐 Generating access token for user: ${user.userId}`);
+          const kc = new KiteConnect({ api_key: apiKey });
+          const session = await kc.generateSession(requestToken, apiSecret);
+          
+          if (!session || !session.access_token) {
+            throw new Error("Failed to generate access token");
+          }
+
+          const accessToken = session.access_token;
+          
+          // Verify the token works
+          kc.setAccessToken(accessToken);
+          const profile = await kc.getProfile();
+          
+          console.log(`  ✅ Access token generated and verified for: ${profile.user_name}`);
+          
+          // Save all credentials to database
+          if (supabase) {
+            // Check if credentials exist
+            const { data: existing } = await supabase
+              .from("credentials")
+              .select("id")
+              .eq("user_id", user.userId)
+              .single();
+            
+            if (existing) {
+              await supabase
+                .from("credentials")
+                .update({ 
+                  api_key: apiKey, 
+                  api_secret: apiSecret, 
+                  access_token: accessToken,
+                  updated_at: new Date().toISOString()
+                })
+                .eq("user_id", user.userId);
+            } else {
+              await supabase
+                .from("credentials")
+                .insert({ 
+                  user_id: user.userId,
+                  api_key: apiKey, 
+                  api_secret: apiSecret, 
+                  access_token: accessToken 
+                });
+            }
+          } else {
+            // SQLite fallback
+            const existing = sqliteDb.query("SELECT id FROM credentials WHERE user_id = ?").get(user.userId) as any;
+            if (existing) {
+              sqliteDb.run("UPDATE credentials SET api_key = ?, api_secret = ?, access_token = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?", 
+                apiKey, apiSecret, accessToken, user.userId);
+            } else {
+              sqliteDb.run("INSERT INTO credentials (user_id, api_key, api_secret, access_token) VALUES (?, ?, ?, ?)", 
+                user.userId, apiKey, apiSecret, accessToken);
+            }
+          }
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: "Access token generated and saved successfully",
+            profile: {
+              userName: profile.user_name,
+              email: profile.email,
+              userId: profile.user_id
+            }
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          console.error(`  ❌ Error generating access token: ${err.message}`);
+          return new Response(JSON.stringify({ 
+            error: "Failed to generate access token", 
+            details: err.message 
+          }), {
+            status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
