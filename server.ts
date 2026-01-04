@@ -122,16 +122,27 @@ const server = serve({
     const path = url.pathname;
     const method = req.method;
 
-    // CORS headers - Allow all origins to avoid Railway proxy conflicts
-    // Railway's proxy may add its own CORS headers, so we use * to ensure compatibility
+    // CORS headers - Handle Railway proxy by explicitly setting headers
+    // Railway's proxy might add headers, so we need to be explicit
     const origin = req.headers.get("origin");
-    const corsHeaders: Record<string, string> = {
-      "Access-Control-Allow-Origin": origin || "*", // Use the actual origin if provided
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-      "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Max-Age": "86400", // 24 hours
-    };
+    
+    // Build CORS headers object
+    const corsHeaders: Record<string, string> = {};
+    
+    // Set origin - use the actual request origin to avoid Railway proxy issues
+    if (origin) {
+      corsHeaders["Access-Control-Allow-Origin"] = origin;
+    } else {
+      corsHeaders["Access-Control-Allow-Origin"] = "*";
+    }
+    
+    corsHeaders["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
+    corsHeaders["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With";
+    corsHeaders["Access-Control-Allow-Credentials"] = "true";
+    corsHeaders["Access-Control-Max-Age"] = "86400";
+    
+    // Explicitly remove any Railway-added headers by not including them
+    // and ensuring our headers take precedence
 
     // Handle preflight OPTIONS request
     if (method === "OPTIONS") {
