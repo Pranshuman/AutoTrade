@@ -117,6 +117,10 @@ async function serveStaticFile(path: string): Promise<Response | null> {
 // API routes
 const server = serve({
   port: process.env.PORT || 3000,
+  // Disable default headers that might conflict
+  error(error) {
+    return new Response(`Error: ${error.message}`, { status: 500 });
+  },
   async fetch(req) {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -174,8 +178,10 @@ const server = serve({
 
       // Public routes
       if (path === "/api/register" && method === "POST") {
+        console.log(`  📝 POST /api/register - Processing registration`);
         const body = await req.json();
         const { username, password } = body;
+        console.log(`  📝 Registration attempt for username: ${username}`);
 
         if (!username || !password) {
           return new Response(JSON.stringify({ error: "Username and password required" }), {
@@ -238,8 +244,10 @@ const server = serve({
       }
 
       if (path === "/api/login" && method === "POST") {
+        console.log(`  🔐 POST /api/login - Processing login`);
         const body = await req.json();
         const { username, password } = body;
+        console.log(`  🔐 Login attempt for username: ${username}`);
 
         try {
           let userData: any = null;
@@ -550,8 +558,11 @@ const server = serve({
 });
 
 console.log(`🚀 AutoTrade API Server running on http://localhost:${server.port}`);
+console.log(`📊 CORS Debugging: ENABLED - All requests will be logged`);
+console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
 if (supabase) {
   console.log(`✅ Using Supabase database`);
 } else {
   console.log(`⚠️  Using SQLite (fallback mode - set SUPABASE_URL and SUPABASE_ANON_KEY for production)`);
 }
+console.log(`\n📝 Watch Railway logs to see CORS header details for each request\n`);
