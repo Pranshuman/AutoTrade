@@ -115,7 +115,9 @@ async function serveStaticFile(path: string): Promise<Response | null> {
 }
 
 // API routes
+// Railway requires binding to 0.0.0.0, not localhost
 const server = serve({
+  hostname: "0.0.0.0", // Required for Railway - binds to all interfaces
   port: process.env.PORT || 3000,
   error(error) {
     return new Response(`Error: ${error.message}`, { status: 500 });
