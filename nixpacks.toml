@@ -1,8 +1,8 @@
 # Nixpacks configuration for Railway
-# This ensures Bun is used as the runtime
+# Bun includes Node.js compatibility, so we only need Bun
 
 [phases.setup]
-nixPkgs = ["nodejs_20", "bun"]
+nixPkgs = ["bun"]
 
 [phases.install]
 cmds = ["bun install"]
