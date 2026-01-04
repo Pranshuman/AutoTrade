@@ -117,7 +117,6 @@ async function serveStaticFile(path: string): Promise<Response | null> {
 // API routes
 const server = serve({
   port: process.env.PORT || 3000,
-  // Disable default headers that might conflict
   error(error) {
     return new Response(`Error: ${error.message}`, { status: 500 });
   },
