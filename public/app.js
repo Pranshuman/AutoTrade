@@ -395,7 +395,21 @@ async function checkStrategyStatus() {
         });
 
         const data = await response.json();
-        updateStrategyUI(data.status);
+        const status = data.status || 'stopped';
+        updateStrategyUI(status);
+
+        // Show/hide tracker based on status
+        const trackerSection = document.getElementById('tracker-section');
+        if (trackerSection) {
+            trackerSection.style.display = status === 'running' ? 'block' : 'none';
+        }
+
+        // Start/stop tracker updates
+        if (status === 'running') {
+            startTrackerUpdates();
+        } else {
+            stopTrackerUpdates();
+        }
     } catch (error) {
         console.error('Error checking strategy status:', error);
     }
@@ -408,6 +422,153 @@ function updateStrategyUI(status) {
 
     document.getElementById('start-btn').disabled = status === 'running';
     document.getElementById('stop-btn').disabled = status !== 'running';
+}
+
+let trackerUpdateInterval = null;
+
+function startTrackerUpdates() {
+    if (trackerUpdateInterval) return; // Already running
+    
+    updateTracker(); // Initial update
+    trackerUpdateInterval = setInterval(updateTracker, 3000); // Update every 3 seconds
+}
+
+function stopTrackerUpdates() {
+    if (trackerUpdateInterval) {
+        clearInterval(trackerUpdateInterval);
+        trackerUpdateInterval = null;
+    }
+}
+
+async function updateTracker() {
+    try {
+        const response = await fetch(`${API_URL}/api/strategy/tracker`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        const data = await response.json();
+
+        // Update prices
+        if (data.prices) {
+            const prices = data.prices;
+            updateElement('tracker-ce-price', prices.cePrice ? `₹${prices.cePrice.toFixed(2)}` : '--');
+            updateElement('tracker-pe-price', prices.pePrice ? `₹${prices.pePrice.toFixed(2)}` : '--');
+            updateElement('tracker-spot-price', prices.spotPrice ? `₹${prices.spotPrice.toFixed(2)}` : '--');
+            updateElement('tracker-ce-vwap', prices.ceVwap ? `₹${prices.ceVwap.toFixed(2)}` : '--');
+            updateElement('tracker-pe-vwap', prices.peVwap ? `₹${prices.peVwap.toFixed(2)}` : '--');
+            
+            if (prices.lastUpdate) {
+                const updateTime = new Date(prices.lastUpdate);
+                updateElement('tracker-last-update', `Last update: ${updateTime.toLocaleTimeString()}`);
+            }
+        }
+
+        // Update positions
+        if (data.positions) {
+            updatePosition('ce', data.positions.ce);
+            updatePosition('pe', data.positions.pe);
+        }
+
+        // Update summary
+        if (data.summary) {
+            const summary = data.summary;
+            updateElement('tracker-total-trades', summary.totalTrades || 0);
+            updateElement('tracker-total-pnl', `₹${(summary.totalPnL || 0).toFixed(2)}`);
+            updateElement('tracker-win-rate', `${(summary.winRate || 0).toFixed(1)}%`);
+            
+            if (summary.startedAt) {
+                const started = new Date(summary.startedAt);
+                updateElement('tracker-started-at', started.toLocaleString());
+            }
+        }
+
+        // Update recent trades
+        if (data.recentTrades) {
+            updateTradesList(data.recentTrades);
+        }
+    } catch (error) {
+        console.error('Error updating tracker:', error);
+    }
+}
+
+function updateElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+}
+
+function updatePosition(instrument, position) {
+    const card = document.getElementById(`tracker-${instrument}-position`);
+    if (!card) return;
+
+    const statusEl = card.querySelector('.position-status');
+    const entryPriceEl = document.getElementById(`${instrument}-entry-price`);
+    const currentPriceEl = document.getElementById(`${instrument}-current-price`);
+    const pnlEl = document.getElementById(`${instrument}-pnl`);
+
+    if (position && position.isOpen) {
+        card.classList.remove('closed');
+        card.classList.add('open');
+        if (statusEl) {
+            statusEl.textContent = 'OPEN';
+            statusEl.classList.remove('closed');
+            statusEl.classList.add('open');
+        }
+        if (entryPriceEl) entryPriceEl.textContent = `₹${position.entryPrice.toFixed(2)}`;
+        if (currentPriceEl) currentPriceEl.textContent = `₹${position.currentPrice?.toFixed(2) || '--'}`;
+        if (pnlEl) {
+            const pnl = position.pnl || 0;
+            pnlEl.textContent = `₹${pnl.toFixed(2)}`;
+            pnlEl.className = `pnl-value ${pnl >= 0 ? 'profit' : 'loss'}`;
+        }
+    } else {
+        card.classList.remove('open');
+        card.classList.add('closed');
+        if (statusEl) {
+            statusEl.textContent = 'CLOSED';
+            statusEl.classList.remove('open');
+            statusEl.classList.add('closed');
+        }
+        if (entryPriceEl) entryPriceEl.textContent = '--';
+        if (currentPriceEl) currentPriceEl.textContent = '--';
+        if (pnlEl) {
+            pnlEl.textContent = '--';
+            pnlEl.className = 'pnl-value';
+        }
+    }
+}
+
+function updateTradesList(trades) {
+    const listEl = document.getElementById('tracker-trades-list');
+    if (!listEl) return;
+
+    if (trades.length === 0) {
+        listEl.innerHTML = '<div class="no-trades">No trades yet</div>';
+        return;
+    }
+
+    // Show last 10 trades
+    const recentTrades = trades.slice(-10).reverse();
+    listEl.innerHTML = recentTrades.map(trade => {
+        const time = new Date(trade.timestamp);
+        const pnlClass = trade.pnl !== undefined ? (trade.pnl >= 0 ? 'profit' : 'loss') : '';
+        const pnlText = trade.pnl !== undefined ? `₹${trade.pnl.toFixed(2)}` : '';
+        
+        return `
+            <div class="trade-item ${trade.action.toLowerCase()}">
+                <div class="trade-header">
+                    <span class="trade-instrument">${trade.instrument}</span>
+                    <span class="trade-action ${trade.action.toLowerCase()}">${trade.action}</span>
+                    <span class="trade-time">${time.toLocaleTimeString()}</span>
+                </div>
+                <div class="trade-details">
+                    <span>Price: ₹${trade.price.toFixed(2)}</span>
+                    <span>Qty: ${trade.quantity}</span>
+                    ${pnlText ? `<span class="trade-pnl ${pnlClass}">P&L: ${pnlText}</span>` : ''}
+                </div>
+                <div class="trade-reason">${trade.reason}</div>
+            </div>
+        `;
+    }).join('');
 }
 
 async function handleStartStrategy() {

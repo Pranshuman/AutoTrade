@@ -705,6 +705,9 @@ const server = serve({
         strategy.process.kill();
         activeStrategies.delete(user.userId);
         
+        // Clear tracker
+        strategyTrackers.delete(user.userId);
+        
         // Update session
         if (supabase) {
           await supabase
@@ -724,6 +727,25 @@ const server = serve({
         });
       }
 
+      // Get strategy tracker data
+      if (path === "/api/strategy/tracker" && method === "GET") {
+        const tracker = strategyTrackers.get(user.userId);
+        if (!tracker) {
+          return new Response(JSON.stringify({ 
+            positions: {},
+            prices: {},
+            recentTrades: [],
+            summary: { totalTrades: 0, totalPnL: 0, winRate: 0 }
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify(tracker), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       return new Response(JSON.stringify({ error: "Not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -733,6 +755,115 @@ const server = serve({
     return new Response("Not found", { status: 404 });
   },
 });
+
+// Parse strategy output to extract tracking data
+function parseStrategyOutput(output: string, userId: string) {
+  const tracker = strategyTrackers.get(userId);
+  if (!tracker) return;
+
+  try {
+    // Parse price updates: [HH:mm:ss] [3s] 💰 Price - CE(strike): ₹price [OPEN @ entry] | PE(strike): ₹price [OPEN @ entry] | Spot: ₹price | CE VWAP: ₹vwap | PE VWAP: ₹vwap
+    const priceMatch = output.match(/\[(\d{2}:\d{2}:\d{2})\]\s+\[3s\]\s+💰\s+Price\s+-\s+CE\((\d+)\):\s+₹([\d.]+)\s+(\[OPEN\s+@\s+([\d.]+)\]|\[CLOSED\])?\s+\|\s+PE\((\d+)\):\s+₹([\d.]+)\s+(\[OPEN\s+@\s+([\d.]+)\]|\[CLOSED\])?\s+\|\s+Spot:\s+₹([\d.]+)\s+\|\s+CE\s+VWAP:\s+₹([\d.]+)\s+\|\s+PE\s+VWAP:\s+₹([\d.]+)/);
+    if (priceMatch) {
+      tracker.prices = {
+        cePrice: parseFloat(priceMatch[3]),
+        pePrice: parseFloat(priceMatch[7]),
+        spotPrice: parseFloat(priceMatch[11]),
+        ceVwap: parseFloat(priceMatch[12]),
+        peVwap: parseFloat(priceMatch[13]),
+        lastUpdate: new Date().toISOString()
+      };
+
+      // Update positions if open
+      if (priceMatch[4] && priceMatch[4].includes("OPEN")) {
+        tracker.positions.ce = {
+          isOpen: true,
+          entryPrice: parseFloat(priceMatch[5]),
+          entryTime: priceMatch[1],
+          currentPrice: parseFloat(priceMatch[3]),
+          pnl: (parseFloat(priceMatch[3]) - parseFloat(priceMatch[5])) * 195 // lot size
+        };
+      } else {
+        tracker.positions.ce = { isOpen: false, entryPrice: 0, entryTime: "" };
+      }
+
+      if (priceMatch[8] && priceMatch[8].includes("OPEN")) {
+        tracker.positions.pe = {
+          isOpen: true,
+          entryPrice: parseFloat(priceMatch[10]),
+          entryTime: priceMatch[1],
+          currentPrice: parseFloat(priceMatch[7]),
+          pnl: (parseFloat(priceMatch[7]) - parseFloat(priceMatch[10])) * 195
+        };
+      } else {
+        tracker.positions.pe = { isOpen: false, entryPrice: 0, entryTime: "" };
+      }
+    }
+
+    // Parse trade entries: 📈 CE ENTRY EXECUTED @ price (reason)
+    const entryMatch = output.match(/📈\s+(CE|PE)\s+ENTRY\s+EXECUTED\s+@\s+([\d.]+)\s+\(([^)]+)\)/);
+    if (entryMatch) {
+      const instrument = entryMatch[1];
+      const price = parseFloat(entryMatch[2]);
+      const reason = entryMatch[3];
+      
+      tracker.recentTrades.push({
+        timestamp: new Date().toISOString(),
+        instrument,
+        action: "ENTRY",
+        price,
+        quantity: 195,
+        reason
+      });
+      
+      // Keep only last 50 trades
+      if (tracker.recentTrades.length > 50) {
+        tracker.recentTrades.shift();
+      }
+      
+      tracker.summary.totalTrades++;
+    }
+
+    // Parse trade exits: 📉 CE EXIT EXECUTED @ price (reason) | PnL: ₹amount
+    const exitMatch = output.match(/📉\s+(CE|PE)\s+(EXIT|SQUARE_OFF)\s+EXECUTED\s+@\s+([\d.]+)\s+\(([^)]+)\)(?:\s+\|\s+PnL:\s+₹([\d.-]+))?/);
+    if (exitMatch) {
+      const instrument = exitMatch[1];
+      const action = exitMatch[2];
+      const price = parseFloat(exitMatch[3]);
+      const reason = exitMatch[4];
+      const pnl = exitMatch[5] ? parseFloat(exitMatch[5]) : undefined;
+      
+      tracker.recentTrades.push({
+        timestamp: new Date().toISOString(),
+        instrument,
+        action,
+        price,
+        quantity: 195,
+        pnl,
+        reason
+      });
+      
+      if (tracker.recentTrades.length > 50) {
+        tracker.recentTrades.shift();
+      }
+      
+      tracker.summary.totalTrades++;
+      
+      if (pnl !== undefined) {
+        tracker.summary.totalPnL += pnl;
+        
+        // Update win rate
+        const winningTrades = tracker.recentTrades.filter(t => t.pnl && t.pnl > 0).length;
+        tracker.summary.winRate = tracker.recentTrades.length > 0 
+          ? (winningTrades / tracker.recentTrades.length) * 100 
+          : 0;
+      }
+    }
+  } catch (err) {
+    // Silently fail parsing - don't break the server
+    console.error(`Error parsing strategy output for user ${userId}:`, err);
+  }
+}
 
 console.log(`🚀 AutoTrade API Server running on 0.0.0.0:${server.port}`);
 console.log(`🌐 Public URL: https://autotrade-api.railway.app (via Railway proxy)`);
