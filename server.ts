@@ -630,6 +630,11 @@ const server = serve({
             });
           }
 
+          // Initialize tracker
+          initTracker(user.userId);
+          const tracker = strategyTrackers.get(user.userId)!;
+          tracker.summary.startedAt = new Date().toISOString();
+
           // Start strategy in background
           const strategyProcess = Bun.spawn(["bun", "run", "vwap_rsi_live_strategy_user.ts", String(user.userId)], {
             env: {
@@ -641,6 +646,26 @@ const server = serve({
             stdout: "pipe",
             stderr: "pipe",
           });
+
+          // Parse strategy output for tracking
+          const outputBuffer: string[] = [];
+          let bufferTimeout: any = null;
+
+          const processOutput = (data: Buffer) => {
+            const text = data.toString();
+            outputBuffer.push(text);
+            
+            // Clear timeout and set new one (debounce)
+            if (bufferTimeout) clearTimeout(bufferTimeout);
+            bufferTimeout = setTimeout(() => {
+              const fullText = outputBuffer.join("");
+              parseStrategyOutput(fullText, user.userId);
+              outputBuffer.length = 0; // Clear buffer
+            }, 1000); // Process every second
+          };
+
+          strategyProcess.stdout.on("data", processOutput);
+          strategyProcess.stderr.on("data", processOutput);
 
           activeStrategies.set(user.userId, { process: strategyProcess, status: "running" });
           

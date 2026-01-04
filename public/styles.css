@@ -251,3 +251,264 @@ form input {
     width: 100%;
 }
 
+/* Tracker Styles */
+.tracker-prices, .tracker-positions, .tracker-summary, .tracker-trades {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.tracker-prices:last-child, .tracker-positions:last-child, 
+.tracker-summary:last-child, .tracker-trades:last-child {
+    border-bottom: none;
+}
+
+.tracker-prices h3, .tracker-positions h3, 
+.tracker-summary h3, .tracker-trades h3 {
+    margin: 0 0 15px 0;
+    color: #667eea;
+    font-size: 1.2em;
+}
+
+.price-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.price-item {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.price-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 600;
+}
+
+.price-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+}
+
+.last-update {
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+    margin-top: 10px;
+}
+
+.positions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.position-card {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    transition: all 0.3s;
+}
+
+.position-card.open {
+    border-color: #2ecc71;
+    background: #f0fdf4;
+}
+
+.position-card.closed {
+    border-color: #95a5a6;
+    background: #f8f9fa;
+}
+
+.position-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.position-instrument {
+    font-size: 18px;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.position-status {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.position-status.open {
+    background: #2ecc71;
+    color: white;
+}
+
+.position-status.closed {
+    background: #95a5a6;
+    color: white;
+}
+
+.position-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.position-details > div {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+}
+
+.position-details span:first-child {
+    color: #666;
+    font-weight: 600;
+}
+
+.pnl-value {
+    font-weight: 700;
+}
+
+.pnl-value.profit {
+    color: #2ecc71;
+}
+
+.pnl-value.loss {
+    color: #e74c3c;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.summary-item {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.summary-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 600;
+}
+
+.summary-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+}
+
+.trades-list {
+    max-height: 400px;
+    overflow-y: auto;
+    background: white;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.no-trades {
+    text-align: center;
+    color: #999;
+    padding: 20px;
+}
+
+.trade-item {
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    border-left: 4px solid #e0e0e0;
+    background: #f8f9fa;
+}
+
+.trade-item.entry {
+    border-left-color: #3498db;
+    background: #ebf5fb;
+}
+
+.trade-item.exit, .trade-item.square_off {
+    border-left-color: #e74c3c;
+    background: #fadbd8;
+}
+
+.trade-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.trade-instrument {
+    font-weight: 700;
+    color: #667eea;
+    font-size: 14px;
+}
+
+.trade-action {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.trade-action.entry {
+    background: #3498db;
+    color: white;
+}
+
+.trade-action.exit, .trade-action.square_off {
+    background: #e74c3c;
+    color: white;
+}
+
+.trade-time {
+    font-size: 11px;
+    color: #999;
+}
+
+.trade-details {
+    display: flex;
+    gap: 15px;
+    font-size: 12px;
+    margin-bottom: 5px;
+    flex-wrap: wrap;
+}
+
+.trade-pnl {
+    font-weight: 700;
+}
+
+.trade-pnl.profit {
+    color: #2ecc71;
+}
+
+.trade-pnl.loss {
+    color: #e74c3c;
+}
+
+.trade-reason {
+    font-size: 11px;
+    color: #666;
+    font-style: italic;
+}
+

@@ -106,6 +106,100 @@
                 <div id="strategy-success" class="success-message"></div>
             </div>
 
+            <!-- Strategy Tracker Section -->
+            <div class="card" id="tracker-section" style="display: none;">
+                <h2>📊 Live Strategy Tracker</h2>
+                <div id="tracker-content">
+                    <!-- Prices -->
+                    <div class="tracker-prices">
+                        <h3>💰 Current Prices</h3>
+                        <div class="price-grid">
+                            <div class="price-item">
+                                <span class="price-label">CE Price:</span>
+                                <span class="price-value" id="tracker-ce-price">--</span>
+                            </div>
+                            <div class="price-item">
+                                <span class="price-label">PE Price:</span>
+                                <span class="price-value" id="tracker-pe-price">--</span>
+                            </div>
+                            <div class="price-item">
+                                <span class="price-label">Spot Price:</span>
+                                <span class="price-value" id="tracker-spot-price">--</span>
+                            </div>
+                            <div class="price-item">
+                                <span class="price-label">CE VWAP:</span>
+                                <span class="price-value" id="tracker-ce-vwap">--</span>
+                            </div>
+                            <div class="price-item">
+                                <span class="price-label">PE VWAP:</span>
+                                <span class="price-value" id="tracker-pe-vwap">--</span>
+                            </div>
+                        </div>
+                        <div class="last-update" id="tracker-last-update">Last update: --</div>
+                    </div>
+
+                    <!-- Positions -->
+                    <div class="tracker-positions">
+                        <h3>📈 Open Positions</h3>
+                        <div class="positions-grid">
+                            <div class="position-card" id="tracker-ce-position">
+                                <div class="position-header">
+                                    <span class="position-instrument">CE</span>
+                                    <span class="position-status closed">CLOSED</span>
+                                </div>
+                                <div class="position-details">
+                                    <div><span>Entry:</span> <span id="ce-entry-price">--</span></div>
+                                    <div><span>Current:</span> <span id="ce-current-price">--</span></div>
+                                    <div><span>P&L:</span> <span id="ce-pnl" class="pnl-value">--</span></div>
+                                </div>
+                            </div>
+                            <div class="position-card" id="tracker-pe-position">
+                                <div class="position-header">
+                                    <span class="position-instrument">PE</span>
+                                    <span class="position-status closed">CLOSED</span>
+                                </div>
+                                <div class="position-details">
+                                    <div><span>Entry:</span> <span id="pe-entry-price">--</span></div>
+                                    <div><span>Current:</span> <span id="pe-current-price">--</span></div>
+                                    <div><span>P&L:</span> <span id="pe-pnl" class="pnl-value">--</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="tracker-summary">
+                        <h3>📊 Session Summary</h3>
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <span class="summary-label">Total Trades:</span>
+                                <span class="summary-value" id="tracker-total-trades">0</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Total P&L:</span>
+                                <span class="summary-value" id="tracker-total-pnl">₹0.00</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Win Rate:</span>
+                                <span class="summary-value" id="tracker-win-rate">0%</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Started:</span>
+                                <span class="summary-value" id="tracker-started-at">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Trades -->
+                    <div class="tracker-trades">
+                        <h3>📋 Recent Trades</h3>
+                        <div class="trades-list" id="tracker-trades-list">
+                            <div class="no-trades">No trades yet</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Info Section -->
             <div class="card info-card">
                 <h2>ℹ️ Information</h2>
