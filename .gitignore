@@ -19,6 +19,9 @@ bun.lockb
 # Temporary strategy files
 vwap_rsi_live_strategy_user_*.ts
 
+# Vercel
+.vercel
+
 # OS files
 .DS_Store
 Thumbs.db
