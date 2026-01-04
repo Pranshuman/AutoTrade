@@ -55,36 +55,56 @@
                 <div id="credentials-status" class="status-badge"></div>
                 
                 <!-- Help Section -->
+                <div class="help-section" style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+                    <h3 style="margin-top: 0; color: #856404;">⚠️ Important: Access Token Expiry</h3>
+                    <p style="margin: 10px 0; color: #856404; font-weight: 600;">
+                        Zerodha access tokens expire <strong>daily at midnight IST</strong>. You must regenerate them each day before trading.
+                    </p>
+                    <p style="margin: 10px 0; color: #856404;">
+                        The system will automatically check if your token is valid. If expired, you'll see a warning and need to regenerate it.
+                    </p>
+                </div>
+
                 <div class="help-section" style="background: #e8f4f8; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3498db;">
-                    <h3 style="margin-top: 0; color: #2980b9;">📖 How to Get Your Access Token:</h3>
+                    <h3 style="margin-top: 0; color: #2980b9;">📖 How to Get/Refresh Your Access Token:</h3>
                     <ol style="margin: 10px 0; padding-left: 20px; color: #555;">
-                        <li><strong>Get API Key & Secret:</strong> From Zerodha Kite Connect app settings</li>
-                        <li><strong>Generate Access Token:</strong>
+                        <li><strong>API Key & Secret:</strong> Get these once from <a href="https://kite.trade/connect/apps" target="_blank" style="color: #3498db;">Zerodha Kite Connect</a> → My Apps (they don't expire)</li>
+                        <li><strong>Generate Access Token (Daily):</strong>
                             <ul style="margin-top: 5px;">
-                                <li>Click the <strong id="kite-login-link-container">Zerodha Login URL</strong> below to open login page</li>
-                                <li>After login, copy the <code>request_token</code> from the redirect URL</li>
-                                <li>Run locally: <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">bun run kite_auth_flow.ts</code></li>
-                                <li>Paste the request_token when prompted to get your access token</li>
+                                <li>Click the <strong>Zerodha Login URL</strong> button below</li>
+                                <li>Log in to Zerodha</li>
+                                <li>After login, you'll be redirected to a URL with <code>?request_token=...</code></li>
+                                <li>Copy the <strong>entire redirect URL</strong> and paste it in the field</li>
+                                <li>Click <strong>"Generate Access Token"</strong></li>
                             </ul>
                         </li>
-                        <li><strong>Enter Credentials:</strong> Paste all three values below</li>
+                        <li><strong>Or use manual method:</strong> Run <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">bun run kite_auth_flow.ts</code> locally</li>
                     </ol>
-                    <p style="margin: 10px 0 0 0; color: #e74c3c; font-size: 14px;">
-                        ⚠️ <strong>Note:</strong> Access tokens expire daily. Regenerate when needed.
-                    </p>
                     <div id="kite-login-url-section" style="margin-top: 15px; padding: 10px; background: #fff; border-radius: 6px; border: 1px solid #3498db;">
-                        <p style="margin: 0 0 10px 0; font-weight: 600; color: #2980b9;">🔗 Zerodha Login URL:</p>
-                        <a href="#" id="kite-login-link" target="_blank" style="display: block; padding: 10px; background: #3498db; color: white; text-decoration: none; border-radius: 6px; text-align: center; font-weight: 600;">
-                            Click to Open Zerodha Login
-                        </a>
+                        <p style="margin: 0 0 10px 0; font-weight: 600; color: #2980b9;">🔗 Generate New Access Token:</p>
+                        <button onclick="generateNewAccessToken()" style="width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px;">
+                            🔄 Generate Access Token
+                        </button>
                         <p id="kite-login-url-text" style="margin: 10px 0 0 0; font-size: 12px; color: #666; word-break: break-all;"></p>
                     </div>
                 </div>
                 
                 <form id="credentials-form" onsubmit="handleSaveCredentials(event)">
-                    <input type="text" id="api-key" placeholder="API Key" required>
-                    <input type="password" id="api-secret" placeholder="API Secret" required>
-                    <input type="password" id="access-token" placeholder="Access Token" required>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">API Key (permanent):</label>
+                        <input type="text" id="api-key" placeholder="API Key" required>
+                        <small style="color: #666; font-size: 12px;">Get from Zerodha Kite Connect → My Apps</small>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">API Secret (permanent):</label>
+                        <input type="password" id="api-secret" placeholder="API Secret" required>
+                        <small style="color: #666; font-size: 12px;">Get from Zerodha Kite Connect → My Apps</small>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">Access Token (expires daily):</label>
+                        <input type="password" id="access-token" placeholder="Access Token - Use 'Generate Access Token' button above" required>
+                        <small style="color: #e74c3c; font-size: 12px; font-weight: 600;">⚠️ Expires daily at midnight IST - regenerate using button above</small>
+                    </div>
                     <button type="submit">Save Credentials</button>
                 </form>
                 <div id="credentials-error" class="error-message"></div>

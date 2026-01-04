@@ -331,14 +331,34 @@ async function loadCredentials() {
             document.getElementById('access-token').value = data.credentials.accessToken;
             
             const statusBadge = document.getElementById('credentials-status');
-            statusBadge.textContent = '✓ Credentials Saved';
-            statusBadge.className = 'status-badge has-credentials';
             
-            document.getElementById('start-btn').disabled = false;
+            // Check token validity
+            if (data.tokenExpired || !data.tokenValid) {
+                statusBadge.textContent = '⚠️ Access Token Expired - Regenerate Required';
+                statusBadge.className = 'status-badge no-credentials';
+                statusBadge.style.background = '#e74c3c';
+                
+                // Show warning message
+                const errorDiv = document.getElementById('credentials-error');
+                errorDiv.textContent = '⚠️ Your access token has expired. Zerodha tokens expire daily at midnight IST. Please regenerate your token using the "Generate Access Token" button below.';
+                errorDiv.classList.add('show');
+                
+                document.getElementById('start-btn').disabled = true;
+            } else {
+                statusBadge.textContent = '✓ Credentials Saved';
+                statusBadge.className = 'status-badge has-credentials';
+                statusBadge.style.background = '';
+                
+                // Clear any previous error messages
+                document.getElementById('credentials-error').classList.remove('show');
+                
+                document.getElementById('start-btn').disabled = false;
+            }
         } else {
             const statusBadge = document.getElementById('credentials-status');
             statusBadge.textContent = '⚠ No Credentials Set';
             statusBadge.className = 'status-badge no-credentials';
+            statusBadge.style.background = '';
             
             document.getElementById('start-btn').disabled = true;
         }

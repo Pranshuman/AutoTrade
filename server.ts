@@ -514,9 +514,40 @@ const server = serve({
           }
           
           if (!creds) {
-            return new Response(JSON.stringify({ credentials: null }), {
+            return new Response(JSON.stringify({ credentials: null, tokenValid: false }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
+          }
+
+          // Check if token is valid and not expired
+          let tokenValid = false;
+          let tokenExpired = false;
+          try {
+            if (creds.access_token) {
+              const kc = new KiteConnect({ api_key: creds.api_key });
+              kc.setAccessToken(creds.access_token);
+              await kc.getProfile(); // This will throw if token is invalid/expired
+              tokenValid = true;
+              
+              // Check if token was updated today (tokens expire at midnight IST)
+              if (creds.updated_at) {
+                const updatedDate = new Date(creds.updated_at);
+                const now = new Date();
+                // Convert to IST (UTC+5:30)
+                const istOffset = 5.5 * 60 * 60 * 1000;
+                const istNow = new Date(now.getTime() + istOffset);
+                const istUpdated = new Date(updatedDate.getTime() + istOffset);
+                
+                // Token expires at midnight IST, so if updated date is not today, it's expired
+                if (istNow.toDateString() !== istUpdated.toDateString()) {
+                  tokenExpired = true;
+                  tokenValid = false;
+                }
+              }
+            }
+          } catch (err: any) {
+            tokenValid = false;
+            tokenExpired = true;
           }
           
           return new Response(JSON.stringify({ 
@@ -525,7 +556,9 @@ const server = serve({
               apiSecret: creds.api_secret, 
               accessToken: creds.access_token, 
               updatedAt: creds.updated_at 
-            } 
+            },
+            tokenValid,
+            tokenExpired
           }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
