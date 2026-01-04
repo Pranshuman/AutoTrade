@@ -187,6 +187,37 @@ const server = serve({
         user = verifyToken(token);
       }
 
+      // Public routes - Get Zerodha login URL
+      if (path === "/api/kite-login-url" && method === "GET") {
+        try {
+          // Use the API key from environment or default (for demo)
+          const apiKey = process.env.KITE_API_KEY || "gssli7u395tn5in8";
+          const kc = new KiteConnect({ api_key: apiKey });
+          const loginURL = kc.getLoginURL();
+          
+          console.log(`  🔗 Generated Kite login URL for API key: ${apiKey}`);
+          
+          return new Response(JSON.stringify({ 
+            loginURL,
+            apiKey,
+            instructions: [
+              "1. Click the login URL above to open Zerodha login",
+              "2. Log in with your Zerodha credentials",
+              "3. After login, you'll be redirected to a URL with ?request_token=...",
+              "4. Copy the request_token value from the URL",
+              "5. Use it with the kite_auth_flow.ts script to generate your access token"
+            ]
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: "Failed to generate login URL", details: err.message }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
       // Public routes
       if (path === "/api/register" && method === "POST") {
         console.log(`  📝 POST /api/register - Processing registration`);
