@@ -263,7 +263,16 @@ const server = serve({
               });
             }
             const token = generateToken(result.id, result.username);
-            return new Response(JSON.stringify({ token, user: { id: result.id, username: result.username } }), {
+            
+            // Generate Kite login URL using user's API key
+            const kc = new KiteConnect({ api_key: apiKey });
+            const loginURL = kc.getLoginURL();
+            
+            return new Response(JSON.stringify({ 
+              token, 
+              user: { id: result.id, username: result.username },
+              loginURL
+            }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
