@@ -2,7 +2,7 @@
 # This ensures Bun is used as the runtime
 
 [phases.setup]
-nixPkgs = ["nodejs-20_x", "bun"]
+nixPkgs = ["nodejs_20", "bun"]
 
 [phases.install]
 cmds = ["bun install"]
