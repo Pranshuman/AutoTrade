@@ -2,14 +2,10 @@
   "version": 2,
   "buildCommand": "echo 'No build needed - static files'",
   "outputDirectory": "public",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*\\.(html|css|js|json|svg|png|jpg|jpeg|gif|ico))",
-      "dest": "/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
