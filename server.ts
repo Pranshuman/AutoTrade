@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { KiteConnect } from "kiteconnect";
 import { serve } from "bun";
 import { join } from "path";
 import { readFile } from "fs/promises";
