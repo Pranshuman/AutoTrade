@@ -125,19 +125,26 @@ const server = serve({
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method;
+    const origin = req.headers.get("origin");
+    const userAgent = req.headers.get("user-agent") || "unknown";
+    
+    // Log all incoming requests for debugging
+    console.log(`\n[${new Date().toISOString()}] ${method} ${path}`);
+    console.log(`  Origin: ${origin || "none"}`);
+    console.log(`  User-Agent: ${userAgent.substring(0, 50)}`);
+    console.log(`  All Request Headers:`, Object.fromEntries(req.headers.entries()));
 
     // CORS headers - Handle Railway proxy by explicitly setting headers
     // Railway's proxy might add headers, so we need to be explicit
-    const origin = req.headers.get("origin");
-    
-    // Build CORS headers object
     const corsHeaders: Record<string, string> = {};
     
     // Set origin - use the actual request origin to avoid Railway proxy issues
     if (origin) {
       corsHeaders["Access-Control-Allow-Origin"] = origin;
+      console.log(`  ✅ Setting CORS origin to: ${origin}`);
     } else {
       corsHeaders["Access-Control-Allow-Origin"] = "*";
+      console.log(`  ⚠️  No origin header, setting CORS to: *`);
     }
     
     corsHeaders["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
@@ -145,18 +152,21 @@ const server = serve({
     corsHeaders["Access-Control-Allow-Credentials"] = "true";
     corsHeaders["Access-Control-Max-Age"] = "86400";
     
-    // Explicitly remove any Railway-added headers by not including them
-    // and ensuring our headers take precedence
+    console.log(`  CORS Headers we're setting:`, corsHeaders);
 
     // Handle preflight OPTIONS request
     if (method === "OPTIONS") {
-      return new Response(null, { 
+      console.log(`  🔵 Handling OPTIONS preflight request`);
+      const response = new Response(null, { 
         status: 204,
         headers: {
           ...corsHeaders,
           "Content-Length": "0",
         }
       });
+      console.log(`  📤 OPTIONS Response status: ${response.status}`);
+      console.log(`  📤 OPTIONS Response headers:`, Object.fromEntries(response.headers.entries()));
+      return response;
     }
 
     // Static files
@@ -212,9 +222,13 @@ const server = serve({
             }
             
             const token = generateToken(data.id, data.username);
-            return new Response(JSON.stringify({ token, user: { id: data.id, username: data.username } }), {
+            const response = new Response(JSON.stringify({ token, user: { id: data.id, username: data.username } }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
+            console.log(`  ✅ Registration successful for: ${data.username}`);
+            console.log(`  📤 Response status: ${response.status}`);
+            console.log(`  📤 Response headers:`, Object.fromEntries(response.headers.entries()));
+            return response;
           } else {
             // Fallback to SQLite
             const result = sqliteDb.query("INSERT INTO users (username, password_hash) VALUES (?, ?) RETURNING id, username").get(username, passwordHash) as any;
@@ -280,9 +294,13 @@ const server = serve({
           }
 
           const token = generateToken(userData.id, userData.username);
-          return new Response(JSON.stringify({ token, user: { id: userData.id, username: userData.username } }), {
+          const response = new Response(JSON.stringify({ token, user: { id: userData.id, username: userData.username } }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
+          console.log(`  ✅ Login successful for: ${userData.username}`);
+          console.log(`  📤 Response status: ${response.status}`);
+          console.log(`  📤 Response headers:`, Object.fromEntries(response.headers.entries()));
+          return response;
         } catch (err: any) {
           return new Response(JSON.stringify({ error: "Login failed" }), {
             status: 500,
