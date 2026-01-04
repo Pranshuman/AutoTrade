@@ -1,0 +1,15 @@
+# Nixpacks configuration for Railway
+# This ensures Bun is used as the runtime
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "bun"]
+
+[phases.install]
+cmds = ["bun install"]
+
+[phases.build]
+cmds = ["echo 'Build complete'"]
+
+[start]
+cmd = "bun run vwap_rsi_live_strategy.ts"
+

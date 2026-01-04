@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "vwap_rsi_live_strategy.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "functions": {
+    "vwap_rsi_live_strategy.ts": {
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "KITE_API_KEY": "@kite_api_key",
+    "KITE_API_SECRET": "@kite_api_secret",
+    "KITE_ACCESS_TOKEN": "@kite_access_token"
+  }
+}
+
