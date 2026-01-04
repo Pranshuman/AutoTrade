@@ -122,14 +122,17 @@ const server = serve({
     const path = url.pathname;
     const method = req.method;
 
-    // CORS headers - Allow specific origins or all
+    // CORS headers - Allow specific origins
     const origin = req.headers.get("origin");
-    const allowedOrigins = [
-      "https://autotrade1234.vercel.app",
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://127.0.0.1:3000",
-    ];
+    const allowedOrigins = process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
+      : [
+          "https://autotrade1234.vercel.app",
+          "https://autotrade.vercel.app",
+          "http://localhost:3000",
+          "http://localhost:5173",
+          "http://127.0.0.1:3000",
+        ];
     
     // Allow origin if it's in the list, or allow all for development
     const allowOrigin = origin && allowedOrigins.includes(origin) 
@@ -141,6 +144,7 @@ const server = serve({
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Max-Age": "86400", // 24 hours
     };
 
     if (method === "OPTIONS") {
