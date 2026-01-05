@@ -169,9 +169,9 @@ async function handleLogin() {
             showKiteLoginStep(data.loginURL);
         } else {
             // Normal login flow
-            showDashboard();
-            loadCredentials();
-            checkStrategyStatus();
+        showDashboard();
+        loadCredentials();
+        checkStrategyStatus();
             updatePrerequisites();
         }
     } catch (error) {
@@ -415,7 +415,7 @@ async function loadCredentials() {
             document.getElementById('api-secret').value = data.credentials.apiSecret;
             // Access token is now managed automatically, but show it if available
             if (data.credentials.accessToken) {
-                document.getElementById('access-token').value = data.credentials.accessToken;
+            document.getElementById('access-token').value = data.credentials.accessToken;
             }
             
             const statusBadge = document.getElementById('credentials-status');
@@ -428,6 +428,18 @@ async function loadCredentials() {
                 statusBadge.textContent = '⚠️ Access Token Missing or Expired';
                 statusBadge.className = 'status-badge no-credentials';
                 statusBadge.style.background = '#e74c3c';
+                
+                // Hide quick start button if token invalid
+                const quickStartSection = document.getElementById('quick-start-section');
+                const quickStartBtn = document.getElementById('quick-start-btn');
+                if (quickStartSection) {
+                    quickStartSection.style.display = 'none';
+                }
+                if (quickStartBtn) {
+                    quickStartBtn.disabled = true;
+                    quickStartBtn.style.opacity = '0.5';
+                    quickStartBtn.style.cursor = 'not-allowed';
+                }
                 
                 // Show warning message
                 if (errorDiv) {
@@ -448,6 +460,18 @@ async function loadCredentials() {
                 statusBadge.textContent = '✓ Credentials Valid';
                 statusBadge.className = 'status-badge has-credentials';
                 statusBadge.style.background = '';
+                
+                // Show quick start button
+                const quickStartSection = document.getElementById('quick-start-section');
+                const quickStartBtn = document.getElementById('quick-start-btn');
+                if (quickStartSection) {
+                    quickStartSection.style.display = 'block';
+                }
+                if (quickStartBtn) {
+                    quickStartBtn.disabled = false;
+                    quickStartBtn.style.opacity = '1';
+                    quickStartBtn.style.cursor = 'pointer';
+                }
                 
                 // Clear any previous error messages
                 if (errorDiv) errorDiv.classList.remove('show');
@@ -562,14 +586,24 @@ function updateStrategyUI(status, startedAt = null) {
     const startBtnText = document.getElementById('start-btn-text');
     const stopBtnText = document.getElementById('stop-btn-text');
     const logsSection = document.getElementById('strategy-logs-section');
+    const quickStartSection = document.getElementById('quick-start-section');
+    const quickStartBtn = document.getElementById('quick-start-btn');
     
     // Update status display
     statusValue.textContent = status === 'running' ? 'RUNNING' : status === 'stopped' ? 'STOPPED' : 'READY';
     statusValue.className = `status-value ${status}`;
-    
+
     // Show/hide logs section
     if (logsSection) {
         logsSection.style.display = status === 'running' ? 'block' : 'none';
+    }
+    
+    // Update quick start button visibility
+    if (quickStartSection && quickStartBtn) {
+        if (status === 'running') {
+            quickStartSection.style.display = 'none'; // Hide when running
+        }
+        // Visibility when stopped/ready is controlled by loadCredentials()
     }
     
     // Update icon and details
