@@ -198,7 +198,7 @@ async function hasValidAccessTokenToday(userId: number): Promise<{ hasToken: boo
 // Active strategy instances per user
 const activeStrategies = new Map<number, { process: any; status: string }>();
 
-// Track strategy data per user (positions, trades, prices)
+// Track strategy data per user (positions, trades, prices, logs)
 interface StrategyTracker {
   positions: {
     ce?: { isOpen: boolean; entryPrice: number; entryTime: string; currentPrice?: number; pnl?: number };
@@ -227,6 +227,11 @@ interface StrategyTracker {
     winRate: number;
     startedAt?: string;
   };
+  logs: Array<{
+    timestamp: string;
+    message: string;
+    type: 'info' | 'price' | 'trade' | 'error' | 'warning';
+  }>;
 }
 
 const strategyTrackers = new Map<number, StrategyTracker>();
@@ -237,7 +242,8 @@ function initTracker(userId: number) {
     positions: {},
     prices: {},
     recentTrades: [],
-    summary: { totalTrades: 0, totalPnL: 0, winRate: 0 }
+    summary: { totalTrades: 0, totalPnL: 0, winRate: 0 },
+    logs: []
   });
 }
 
@@ -1030,6 +1036,34 @@ const server = serve({
             const text = data.toString();
             outputBuffer.push(text);
             
+            // Store raw logs
+            const tracker = strategyTrackers.get(user.userId);
+            if (tracker) {
+              const lines = text.split('\n').filter(line => line.trim());
+              lines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (trimmedLine) {
+                  // Determine log type
+                  let logType: 'info' | 'price' | 'trade' | 'error' | 'warning' = 'info';
+                  if (trimmedLine.includes('💰 Price')) logType = 'price';
+                  else if (trimmedLine.includes('ENTRY EXECUTED') || trimmedLine.includes('EXIT EXECUTED')) logType = 'trade';
+                  else if (trimmedLine.includes('❌') || trimmedLine.includes('Error')) logType = 'error';
+                  else if (trimmedLine.includes('⚠️') || trimmedLine.includes('Warning')) logType = 'warning';
+                  
+                  tracker.logs.push({
+                    timestamp: new Date().toISOString(),
+                    message: trimmedLine,
+                    type: logType
+                  });
+                  
+                  // Keep only last 500 log entries
+                  if (tracker.logs.length > 500) {
+                    tracker.logs.shift();
+                  }
+                }
+              });
+            }
+            
             // Clear timeout and set new one (debounce)
             if (bufferTimeout) clearTimeout(bufferTimeout);
             bufferTimeout = setTimeout(() => {
@@ -1110,13 +1144,33 @@ const server = serve({
             positions: {},
             prices: {},
             recentTrades: [],
-            summary: { totalTrades: 0, totalPnL: 0, winRate: 0 }
+            summary: { totalTrades: 0, totalPnL: 0, winRate: 0 },
+            logs: []
           }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
         return new Response(JSON.stringify(tracker), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get strategy logs
+      if (path === "/api/strategy/logs" && method === "GET") {
+        const tracker = strategyTrackers.get(user.userId);
+        const urlParams = new URLSearchParams(url.search);
+        const limit = parseInt(urlParams.get("limit") || "100");
+        
+        if (!tracker || !tracker.logs) {
+          return new Response(JSON.stringify({ logs: [] }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Return last N logs
+        const logs = tracker.logs.slice(-limit);
+        return new Response(JSON.stringify({ logs }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

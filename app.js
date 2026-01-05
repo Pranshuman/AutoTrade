@@ -541,10 +541,16 @@ function updateStrategyUI(status, startedAt = null) {
     const stopBtn = document.getElementById('stop-btn');
     const startBtnText = document.getElementById('start-btn-text');
     const stopBtnText = document.getElementById('stop-btn-text');
+    const logsSection = document.getElementById('strategy-logs-section');
     
     // Update status display
     statusValue.textContent = status === 'running' ? 'RUNNING' : status === 'stopped' ? 'STOPPED' : 'READY';
     statusValue.className = `status-value ${status}`;
+    
+    // Show/hide logs section
+    if (logsSection) {
+        logsSection.style.display = status === 'running' ? 'block' : 'none';
+    }
     
     // Update icon and details
     if (status === 'running') {
@@ -562,6 +568,9 @@ function updateStrategyUI(status, startedAt = null) {
         stopBtn.style.opacity = '1';
         stopBtn.style.cursor = 'pointer';
         stopBtnText.textContent = '⏹️ Stop Strategy';
+        
+        // Start polling logs
+        startLogsPolling();
     } else if (status === 'stopped') {
         statusIcon.textContent = '🔴';
         statusDetails.textContent = 'Strategy is stopped. Click "Start Strategy" to begin trading.';
@@ -575,6 +584,9 @@ function updateStrategyUI(status, startedAt = null) {
         stopBtn.style.opacity = '0.5';
         stopBtn.style.cursor = 'not-allowed';
         startBtnText.textContent = '▶️ Start Strategy';
+        
+        // Stop polling logs
+        stopLogsPolling();
     } else {
         statusIcon.textContent = '⚪';
         statusDetails.textContent = 'Ready to start. Ensure credentials are valid before starting.';
@@ -588,10 +600,88 @@ function updateStrategyUI(status, startedAt = null) {
         stopBtn.style.opacity = '0.5';
         stopBtn.style.cursor = 'not-allowed';
         startBtnText.textContent = '▶️ Start Strategy';
+        
+        // Stop polling logs
+        stopLogsPolling();
     }
     
     // Update prerequisites
     updatePrerequisites();
+}
+
+// Logs polling
+let logsPollInterval = null;
+let lastLogCount = 0;
+
+function startLogsPolling() {
+    if (logsPollInterval) return; // Already polling
+    
+    updateLogs(); // Initial load
+    logsPollInterval = setInterval(updateLogs, 2000); // Poll every 2 seconds
+}
+
+function stopLogsPolling() {
+    if (logsPollInterval) {
+        clearInterval(logsPollInterval);
+        logsPollInterval = null;
+    }
+}
+
+async function updateLogs() {
+    try {
+        const response = await fetch(`${API_URL}/api/strategy/logs?limit=100`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        const data = await response.json();
+        const logsContent = document.getElementById('strategy-logs-content');
+        if (!logsContent) return;
+        
+        if (data.logs && data.logs.length > 0) {
+            // Only update if we have new logs
+            if (data.logs.length !== lastLogCount) {
+                lastLogCount = data.logs.length;
+                
+                logsContent.innerHTML = data.logs.map(log => {
+                    const time = new Date(log.timestamp);
+                    const timeStr = time.toLocaleTimeString();
+                    
+                    // Color code by type
+                    let color = '#d4d4d4';
+                    if (log.type === 'price') color = '#4ec9b0';
+                    else if (log.type === 'trade') color = '#dcdcaa';
+                    else if (log.type === 'error') color = '#f48771';
+                    else if (log.type === 'warning') color = '#ce9178';
+                    
+                    // Escape HTML in message
+                    const message = log.message
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    
+                    return `<div style="color: ${color}; margin-bottom: 2px;">[${timeStr}] ${message}</div>`;
+                }).join('');
+                
+                // Auto-scroll if enabled
+                const autoScroll = document.getElementById('auto-scroll-logs');
+                if (autoScroll && autoScroll.checked) {
+                    logsContent.parentElement.scrollTop = logsContent.parentElement.scrollHeight;
+                }
+            }
+        } else {
+            logsContent.innerHTML = '<div style="color: #888;">No logs yet. Logs will appear here when strategy starts.</div>';
+        }
+    } catch (error) {
+        console.error('Error fetching logs:', error);
+    }
+}
+
+function clearLogs() {
+    const logsContent = document.getElementById('strategy-logs-content');
+    if (logsContent) {
+        logsContent.innerHTML = '<div style="color: #888;">Logs cleared.</div>';
+    }
+    lastLogCount = 0;
 }
 
 function updatePrerequisites() {
