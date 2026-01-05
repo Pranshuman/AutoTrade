@@ -427,6 +427,18 @@ async function loadCredentials() {
                 // Don't enable start button here - let updateStrategyUI handle it
                 updatePrerequisites();
                 
+                // Show quick start button
+                const quickStartSection = document.getElementById('quick-start-section');
+                const quickStartBtn = document.getElementById('quick-start-btn');
+                if (quickStartSection) {
+                    quickStartSection.style.display = 'block';
+                }
+                if (quickStartBtn) {
+                    quickStartBtn.disabled = false;
+                    quickStartBtn.style.opacity = '1';
+                    quickStartBtn.style.cursor = 'pointer';
+                }
+                
                 // Hide error messages
                 if (errorDiv) errorDiv.classList.remove('show');
                 if (successDiv) {
@@ -444,6 +456,18 @@ async function loadCredentials() {
                 statusBadge.className = 'status-badge no-credentials';
                 // Don't disable start button here - let updateStrategyUI handle it
                 updatePrerequisites();
+                
+                // Hide quick start button if token invalid
+                const quickStartSection = document.getElementById('quick-start-section');
+                const quickStartBtn = document.getElementById('quick-start-btn');
+                if (quickStartSection) {
+                    quickStartSection.style.display = 'none';
+                }
+                if (quickStartBtn) {
+                    quickStartBtn.disabled = true;
+                    quickStartBtn.style.opacity = '0.5';
+                    quickStartBtn.style.cursor = 'not-allowed';
+                }
                 
                 // Show message to re-authenticate
                 if (errorDiv) {
@@ -463,6 +487,18 @@ async function loadCredentials() {
             const statusBadge = document.getElementById('credentials-status');
             statusBadge.textContent = '⚠ No Credentials Set';
             statusBadge.className = 'status-badge no-credentials';
+            
+            // Hide quick start button if no credentials
+            const quickStartSection = document.getElementById('quick-start-section');
+            const quickStartBtn = document.getElementById('quick-start-btn');
+            if (quickStartSection) {
+                quickStartSection.style.display = 'none';
+            }
+            if (quickStartBtn) {
+                quickStartBtn.disabled = true;
+                quickStartBtn.style.opacity = '0.5';
+                quickStartBtn.style.cursor = 'not-allowed';
+            }
             
             updatePrerequisites();
             
@@ -542,6 +578,10 @@ function updateStrategyUI(status, startedAt = null) {
     const startBtnText = document.getElementById('start-btn-text');
     const stopBtnText = document.getElementById('stop-btn-text');
     const logsSection = document.getElementById('strategy-logs-section');
+    const quickStartSection = document.getElementById('quick-start-section');
+    const quickStartBtn = document.getElementById('quick-start-btn');
+    const quickStartSection = document.getElementById('quick-start-section');
+    const quickStartBtn = document.getElementById('quick-start-btn');
     
     // Update status display
     statusValue.textContent = status === 'running' ? 'RUNNING' : status === 'stopped' ? 'STOPPED' : 'READY';
@@ -550,6 +590,16 @@ function updateStrategyUI(status, startedAt = null) {
     // Show/hide logs section
     if (logsSection) {
         logsSection.style.display = status === 'running' ? 'block' : 'none';
+    }
+    
+    // Update quick start button
+    if (quickStartSection && quickStartBtn) {
+        if (status === 'running') {
+            quickStartSection.style.display = 'none'; // Hide when running
+        } else {
+            // Show only if credentials are valid (check will be done by loadCredentials)
+            // Don't change display here, let loadCredentials handle it
+        }
     }
     
     // Update icon and details
