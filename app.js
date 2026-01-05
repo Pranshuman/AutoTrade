@@ -413,7 +413,7 @@ async function loadCredentials() {
             document.getElementById('api-secret').value = data.credentials.apiSecret;
             // Access token is now managed automatically, but show it if available
             if (data.credentials.accessToken) {
-                document.getElementById('access-token').value = data.credentials.accessToken;
+            document.getElementById('access-token').value = data.credentials.accessToken;
             }
             
             const statusBadge = document.getElementById('credentials-status');
@@ -584,7 +584,7 @@ function updateStrategyUI(status, startedAt = null) {
     // Update status display
     statusValue.textContent = status === 'running' ? 'RUNNING' : status === 'stopped' ? 'STOPPED' : 'READY';
     statusValue.className = `status-value ${status}`;
-    
+
     // Show/hide logs section
     if (logsSection) {
         logsSection.style.display = status === 'running' ? 'block' : 'none';
@@ -625,13 +625,29 @@ function updateStrategyUI(status, startedAt = null) {
         statusDetails.style.color = '#e74c3c';
         
         // Button states
-        startBtn.disabled = false;
-        startBtn.style.opacity = '1';
-        startBtn.style.cursor = 'pointer';
-        stopBtn.disabled = true;
-        stopBtn.style.opacity = '0.5';
-        stopBtn.style.cursor = 'not-allowed';
-        startBtnText.textContent = '▶️ Start Strategy';
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.style.opacity = '1';
+            startBtn.style.cursor = 'pointer';
+        }
+        if (stopBtn) {
+            stopBtn.disabled = true;
+            stopBtn.style.opacity = '0.5';
+            stopBtn.style.cursor = 'not-allowed';
+        }
+        if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+        
+        // Enable quick start button if credentials are valid
+        if (quickStartBtn && quickStartSection) {
+            // Check if credentials are valid by checking if section should be visible
+            const credsStatus = document.getElementById('credentials-status');
+            if (credsStatus && credsStatus.className.includes('has-credentials')) {
+                quickStartSection.style.display = 'block';
+                quickStartBtn.disabled = false;
+                quickStartBtn.style.opacity = '1';
+                quickStartBtn.style.cursor = 'pointer';
+            }
+        }
         
         // Stop polling logs
         stopLogsPolling();
@@ -641,13 +657,28 @@ function updateStrategyUI(status, startedAt = null) {
         statusDetails.style.color = '#7f8c8d';
         
         // Button states
-        startBtn.disabled = false;
-        startBtn.style.opacity = '1';
-        startBtn.style.cursor = 'pointer';
-        stopBtn.disabled = true;
-        stopBtn.style.opacity = '0.5';
-        stopBtn.style.cursor = 'not-allowed';
-        startBtnText.textContent = '▶️ Start Strategy';
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.style.opacity = '1';
+            startBtn.style.cursor = 'pointer';
+        }
+        if (stopBtn) {
+            stopBtn.disabled = true;
+            stopBtn.style.opacity = '0.5';
+            stopBtn.style.cursor = 'not-allowed';
+        }
+        if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+        
+        // Enable quick start button if credentials are valid
+        if (quickStartBtn && quickStartSection) {
+            const credsStatus = document.getElementById('credentials-status');
+            if (credsStatus && credsStatus.className.includes('has-credentials')) {
+                quickStartSection.style.display = 'block';
+                quickStartBtn.disabled = false;
+                quickStartBtn.style.opacity = '1';
+                quickStartBtn.style.cursor = 'pointer';
+            }
+        }
         
         // Stop polling logs
         stopLogsPolling();
@@ -779,11 +810,23 @@ async function handleStartStrategy() {
     const startBtn = document.getElementById('start-btn');
     const startBtnText = document.getElementById('start-btn-text');
     const statusDetails = document.getElementById('status-details');
+    const quickStartBtn = document.getElementById('quick-start-btn');
 
     // Show loading state
-    startBtn.disabled = true;
-    startBtnText.textContent = '⏳ Starting...';
-    statusDetails.textContent = 'Starting strategy...';
+    if (startBtn) {
+        startBtn.disabled = true;
+    }
+    if (startBtnText) {
+        startBtnText.textContent = '⏳ Starting...';
+    }
+    if (quickStartBtn) {
+        quickStartBtn.disabled = true;
+        quickStartBtn.textContent = '⏳ Starting...';
+    }
+    if (statusDetails) {
+        statusDetails.textContent = 'Starting strategy...';
+        statusDetails.style.color = '#3498db';
+    }
     errorDiv.classList.remove('show');
     successDiv.classList.remove('show');
 
@@ -801,10 +844,16 @@ async function handleStartStrategy() {
             errorDiv.textContent = data.error || 'Failed to start strategy';
             errorDiv.classList.add('show');
             successDiv.classList.remove('show');
-            startBtnText.textContent = '▶️ Start Strategy';
-            startBtn.disabled = false;
-            statusDetails.textContent = 'Failed to start. Please check credentials and try again.';
-            statusDetails.style.color = '#e74c3c';
+            if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+            if (startBtn) startBtn.disabled = false;
+            if (quickStartBtn) {
+                quickStartBtn.disabled = false;
+                quickStartBtn.textContent = '▶️ Start Strategy';
+            }
+            if (statusDetails) {
+                statusDetails.textContent = 'Failed to start. Please check credentials and try again.';
+                statusDetails.style.color = '#e74c3c';
+            }
             return;
         }
 
@@ -821,10 +870,16 @@ async function handleStartStrategy() {
         errorDiv.textContent = 'Network error. Please check your connection and try again.';
         errorDiv.classList.add('show');
         successDiv.classList.remove('show');
-        startBtnText.textContent = '▶️ Start Strategy';
-        startBtn.disabled = false;
-        statusDetails.textContent = 'Connection error. Please try again.';
-        statusDetails.style.color = '#e74c3c';
+        if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+        if (startBtn) startBtn.disabled = false;
+        if (quickStartBtn) {
+            quickStartBtn.disabled = false;
+            quickStartBtn.textContent = '▶️ Start Strategy';
+        }
+        if (statusDetails) {
+            statusDetails.textContent = 'Connection error. Please try again.';
+            statusDetails.style.color = '#e74c3c';
+        }
     }
 }
 
