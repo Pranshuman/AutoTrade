@@ -841,9 +841,16 @@ async function handleStartStrategy() {
         const data = await response.json();
 
         if (!response.ok) {
-            errorDiv.textContent = data.error || 'Failed to start strategy';
+            const errorMessage = data.error || 'Failed to start strategy';
+            errorDiv.textContent = errorMessage;
             errorDiv.classList.add('show');
             successDiv.classList.remove('show');
+            
+            // If error mentions access token, suggest generating one
+            if (errorMessage.includes('Access token') || errorMessage.includes('authenticate')) {
+                errorDiv.innerHTML = `${errorMessage}<br><br><button onclick="generateNewAccessToken()" style="margin-top: 10px; padding: 8px 15px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer;">🔐 Generate Access Token</button>`;
+            }
+            
             if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
             if (startBtn) startBtn.disabled = false;
             if (quickStartBtn) {
@@ -851,7 +858,7 @@ async function handleStartStrategy() {
                 quickStartBtn.textContent = '▶️ Start Strategy';
             }
             if (statusDetails) {
-                statusDetails.textContent = 'Failed to start. Please check credentials and try again.';
+                statusDetails.textContent = errorMessage;
                 statusDetails.style.color = '#e74c3c';
             }
             return;
