@@ -28,10 +28,21 @@ CREATE TABLE IF NOT EXISTS strategy_sessions (
   stopped_at TIMESTAMP
 );
 
+-- Create sessions table for daily access tokens
+CREATE TABLE IF NOT EXISTS sessions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  access_token TEXT NOT NULL,
+  session_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, session_date)
+);
+
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE credentials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE strategy_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 
 -- Create policies to allow all operations
 -- Note: In production, you'd want more restrictive policies
@@ -42,6 +53,9 @@ CREATE POLICY "Allow all operations on credentials" ON credentials
   FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow all operations on strategy_sessions" ON strategy_sessions
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all operations on sessions" ON sessions
   FOR ALL USING (true) WITH CHECK (true);
 
 -- Verify tables were created

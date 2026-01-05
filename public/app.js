@@ -31,16 +31,42 @@ document.addEventListener('DOMContentLoaded', () => {
     setupKiteLoginLink();
 });
 
+// Generate new access token - show Kite login step
+async function generateNewAccessToken() {
+    if (!authToken) {
+        alert('Please login first');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/api/kite-login-url`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await response.json();
+        
+        if (data.loginURL) {
+            showKiteLoginStep(data.loginURL);
+        } else {
+            throw new Error('Could not get login URL');
+        }
+    } catch (error) {
+        alert('Error: Could not generate login URL. Please ensure you are logged in and have saved your API credentials.');
+        console.error('Error generating login URL:', error);
+    }
+}
+
 // Setup Kite Connect login URL
 async function setupKiteLoginLink() {
     const loginLink = document.getElementById('kite-login-link');
     const loginUrlText = document.getElementById('kite-login-url-text');
     
-    if (!loginLink) return;
+    if (!loginLink || !authToken) return;
     
     try {
         // Fetch login URL from API
-        const response = await fetch(`${API_URL}/api/kite-login-url`);
+        const response = await fetch(`${API_URL}/api/kite-login-url`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
         const data = await response.json();
         
         if (data.loginURL) {
@@ -112,9 +138,17 @@ async function handleLogin() {
         authToken = data.token;
         currentUser = data.user;
         localStorage.setItem('authToken', authToken);
-        showDashboard();
-        loadCredentials();
-        checkStrategyStatus();
+        
+        // Check if user needs to authenticate with Kite
+        if (data.needsAuth && data.loginURL) {
+            // Show Kite login step
+            showKiteLoginStep(data.loginURL);
+        } else {
+            // Normal login flow
+            showDashboard();
+            loadCredentials();
+            checkStrategyStatus();
+        }
     } catch (error) {
         errorDiv.textContent = 'Network error. Please try again.';
         errorDiv.classList.add('show');
@@ -233,12 +267,32 @@ async function handleKiteRedirect() {
             throw new Error('No request_token found in URL');
         }
         
-        // Get pending API credentials
-        const apiKey = sessionStorage.getItem('pendingApiKey');
-        const apiSecret = sessionStorage.getItem('pendingApiSecret');
+        // Get API credentials from credentials endpoint or session storage
+        let apiKey, apiSecret;
+        
+        // First try to get from credentials endpoint
+        try {
+            const credsResponse = await fetch(`${API_URL}/api/credentials`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const credsData = await credsResponse.json();
+            
+            if (credsData.credentials && credsData.credentials.apiKey && credsData.credentials.apiSecret) {
+                apiKey = credsData.credentials.apiKey;
+                apiSecret = credsData.credentials.apiSecret;
+            }
+        } catch (err) {
+            console.warn('Could not fetch credentials from API:', err);
+        }
+        
+        // Fallback to session storage (for registration flow)
+        if (!apiKey || !apiSecret) {
+            apiKey = sessionStorage.getItem('pendingApiKey');
+            apiSecret = sessionStorage.getItem('pendingApiSecret');
+        }
         
         if (!apiKey || !apiSecret) {
-            throw new Error('API credentials not found. Please register again.');
+            throw new Error('API credentials not found. Please ensure your API key and secret are saved in credentials.');
         }
         
         // Call API to generate access token
@@ -267,12 +321,16 @@ async function handleKiteRedirect() {
         successDiv.classList.add('show');
         
         // Hide login step and show dashboard
-        document.getElementById('kite-login-step').style.display = 'none';
+        const loginStep = document.getElementById('kite-login-step');
+        if (loginStep) {
+            loginStep.style.display = 'none';
+        }
         showDashboard();
         
         // Load credentials (they should be saved automatically)
         setTimeout(() => {
             loadCredentials();
+            checkStrategyStatus();
         }, 1000);
         
     } catch (err) {
@@ -328,7 +386,10 @@ async function loadCredentials() {
         if (data.credentials) {
             document.getElementById('api-key').value = data.credentials.apiKey;
             document.getElementById('api-secret').value = data.credentials.apiSecret;
-            document.getElementById('access-token').value = data.credentials.accessToken;
+            // Access token is now managed automatically, but show it if available
+            if (data.credentials.accessToken) {
+                document.getElementById('access-token').value = data.credentials.accessToken;
+            }
             
             const statusBadge = document.getElementById('credentials-status');
             
@@ -345,7 +406,7 @@ async function loadCredentials() {
                 
                 document.getElementById('start-btn').disabled = true;
             } else {
-                statusBadge.textContent = '✓ Credentials Saved';
+                statusBadge.textContent = '✓ Credentials Valid';
                 statusBadge.className = 'status-badge has-credentials';
                 statusBadge.style.background = '';
                 
@@ -354,6 +415,9 @@ async function loadCredentials() {
                 
                 document.getElementById('start-btn').disabled = false;
             }
+            
+            // Update Kite login URL
+            setupKiteLoginLink();
         } else {
             const statusBadge = document.getElementById('credentials-status');
             statusBadge.textContent = '⚠ No Credentials Set';

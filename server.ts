@@ -59,6 +59,18 @@ if (!supabase) {
       )
     `);
     
+    sqliteDb.run(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        access_token TEXT NOT NULL,
+        session_date DATE NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id, session_date)
+      )
+    `);
+    
     console.log("✅ SQLite database initialized (fallback mode)");
   } catch (err) {
     console.error("❌ Failed to initialize SQLite:", err);
@@ -89,6 +101,92 @@ function verifyToken(token: string): { userId: number; username: string } | null
     return { userId: payload.userId, username: payload.username };
   } catch {
     return null;
+  }
+}
+
+// Get today's date in IST (YYYY-MM-DD format)
+function getTodayIST(): string {
+  const now = new Date();
+  // IST is UTC+5:30
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istTime = new Date(now.getTime() + istOffset);
+  const year = istTime.getUTCFullYear();
+  const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(istTime.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Check if user has valid access token for today
+async function hasValidAccessTokenToday(userId: number): Promise<{ hasToken: boolean; accessToken?: string }> {
+  const today = getTodayIST();
+  
+  try {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("sessions")
+        .select("access_token")
+        .eq("user_id", userId)
+        .eq("session_date", today)
+        .single();
+      
+      if (error || !data) {
+        return { hasToken: false };
+      }
+      
+      // Verify token is still valid by trying to use it
+      try {
+        // Get user's API key from credentials
+        const { data: creds } = await supabase
+          .from("credentials")
+          .select("api_key")
+          .eq("user_id", userId)
+          .single();
+        
+        if (creds && creds.api_key) {
+          const kc = new KiteConnect({ api_key: creds.api_key });
+          kc.setAccessToken(data.access_token);
+          await kc.getProfile(); // This will throw if token is invalid
+          return { hasToken: true, accessToken: data.access_token };
+        }
+      } catch (err) {
+        // Token is invalid, remove it
+        await supabase
+          .from("sessions")
+          .delete()
+          .eq("user_id", userId)
+          .eq("session_date", today);
+        return { hasToken: false };
+      }
+      
+      return { hasToken: true, accessToken: data.access_token };
+    } else {
+      // SQLite fallback
+      const session = sqliteDb.query("SELECT access_token FROM sessions WHERE user_id = ? AND session_date = ?").get(userId, today) as any;
+      
+      if (!session) {
+        return { hasToken: false };
+      }
+      
+      // Verify token is still valid
+      try {
+        const creds = sqliteDb.query("SELECT api_key FROM credentials WHERE user_id = ?").get(userId) as any;
+        if (creds && creds.api_key) {
+          const kc = new KiteConnect({ api_key: creds.api_key });
+          kc.setAccessToken(session.access_token);
+          await kc.getProfile();
+          return { hasToken: true, accessToken: session.access_token };
+        }
+      } catch (err) {
+        // Token is invalid, remove it
+        sqliteDb.run("DELETE FROM sessions WHERE user_id = ? AND session_date = ?", userId, today);
+        return { hasToken: false };
+      }
+      
+      return { hasToken: true, accessToken: session.access_token };
+    }
+  } catch (err) {
+    console.error("Error checking access token:", err);
+    return { hasToken: false };
   }
 }
 
@@ -369,8 +467,56 @@ const server = serve({
             });
           }
 
+          // Check if user has API credentials
+          let creds: any = null;
+          if (supabase) {
+            const { data } = await supabase
+              .from("credentials")
+              .select("api_key, api_secret")
+              .eq("user_id", userData.id)
+              .single();
+            creds = data;
+          } else {
+            creds = sqliteDb.query("SELECT api_key, api_secret FROM credentials WHERE user_id = ?").get(userData.id) as any;
+          }
+
+          if (!creds || !creds.api_key || !creds.api_secret) {
+            return new Response(JSON.stringify({ 
+              error: "API credentials not found. Please register with API key and secret.",
+              needsCredentials: true
+            }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          // Check if user has valid access token for today
+          const tokenCheck = await hasValidAccessTokenToday(userData.id);
+          
           const token = generateToken(userData.id, userData.username);
-          const response = new Response(JSON.stringify({ token, user: { id: userData.id, username: userData.username } }), {
+          
+          // If no valid token, return login URL for Kite authentication
+          if (!tokenCheck.hasToken) {
+            const kc = new KiteConnect({ api_key: creds.api_key });
+            const loginURL = kc.getLoginURL();
+            
+            const response = new Response(JSON.stringify({ 
+              token, 
+              user: { id: userData.id, username: userData.username },
+              needsAuth: true,
+              loginURL
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+            console.log(`  ✅ Login successful for: ${userData.username} (needs Kite auth)`);
+            return response;
+          }
+
+          const response = new Response(JSON.stringify({ 
+            token, 
+            user: { id: userData.id, username: userData.username },
+            needsAuth: false
+          }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
           console.log(`  ✅ Login successful for: ${userData.username}`);
@@ -379,6 +525,56 @@ const server = serve({
           return response;
         } catch (err: any) {
           return new Response(JSON.stringify({ error: "Login failed" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // Protected routes - Get Kite login URL
+      if (path === "/api/kite-login-url" && method === "GET") {
+        if (!user) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        try {
+          // Get user's API key from credentials
+          let creds: any = null;
+          if (supabase) {
+            const { data, error } = await supabase
+              .from("credentials")
+              .select("api_key")
+              .eq("user_id", user.userId)
+              .single();
+            
+            if (error || !data) {
+              return new Response(JSON.stringify({ error: "API credentials not found" }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+            creds = data;
+          } else {
+            creds = sqliteDb.query("SELECT api_key FROM credentials WHERE user_id = ?").get(user.userId) as any;
+            if (!creds) {
+              return new Response(JSON.stringify({ error: "API credentials not found" }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          }
+
+          const kc = new KiteConnect({ api_key: creds.api_key });
+          const loginURL = kc.getLoginURL();
+
+          return new Response(JSON.stringify({ loginURL }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: "Failed to generate login URL" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -422,7 +618,9 @@ const server = serve({
           
           console.log(`  ✅ Access token generated and verified for: ${profile.user_name}`);
           
-          // Save all credentials to database
+          const today = getTodayIST();
+          
+          // Save API key and secret to credentials table (if not already there)
           if (supabase) {
             // Check if credentials exist
             const { data: existing } = await supabase
@@ -436,8 +634,7 @@ const server = serve({
                 .from("credentials")
                 .update({ 
                   api_key: apiKey, 
-                  api_secret: apiSecret, 
-                  access_token: accessToken,
+                  api_secret: apiSecret,
                   updated_at: new Date().toISOString()
                 })
                 .eq("user_id", user.userId);
@@ -447,20 +644,38 @@ const server = serve({
                 .insert({ 
                   user_id: user.userId,
                   api_key: apiKey, 
-                  api_secret: apiSecret, 
-                  access_token: accessToken 
+                  api_secret: apiSecret,
+                  access_token: accessToken // Keep for backward compatibility
                 });
             }
+            
+            // Store access token in sessions table for today
+            await supabase
+              .from("sessions")
+              .upsert({
+                user_id: user.userId,
+                access_token: accessToken,
+                session_date: today,
+                created_at: new Date().toISOString()
+              }, {
+                onConflict: "user_id,session_date"
+              });
           } else {
             // SQLite fallback
             const existing = sqliteDb.query("SELECT id FROM credentials WHERE user_id = ?").get(user.userId) as any;
             if (existing) {
-              sqliteDb.run("UPDATE credentials SET api_key = ?, api_secret = ?, access_token = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?", 
-                apiKey, apiSecret, accessToken, user.userId);
+              sqliteDb.run("UPDATE credentials SET api_key = ?, api_secret = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?", 
+                apiKey, apiSecret, user.userId);
             } else {
               sqliteDb.run("INSERT INTO credentials (user_id, api_key, api_secret, access_token) VALUES (?, ?, ?, ?)", 
                 user.userId, apiKey, apiSecret, accessToken);
             }
+            
+            // Store access token in sessions table for today
+            sqliteDb.run(`
+              INSERT OR REPLACE INTO sessions (user_id, access_token, session_date, created_at)
+              VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            `, user.userId, accessToken, today);
           }
 
           return new Response(JSON.stringify({ 
@@ -497,11 +712,12 @@ const server = serve({
       if (path === "/api/credentials" && method === "GET") {
         try {
           let creds: any = null;
+          const today = getTodayIST();
           
           if (supabase) {
             const { data, error } = await supabase
               .from("credentials")
-              .select("api_key, api_secret, access_token, updated_at")
+              .select("api_key, api_secret, updated_at")
               .eq("user_id", user.userId)
               .single();
             
@@ -509,8 +725,30 @@ const server = serve({
               throw error;
             }
             creds = data;
+            
+            // Get today's access token from sessions table
+            if (creds) {
+              const { data: session } = await supabase
+                .from("sessions")
+                .select("access_token")
+                .eq("user_id", user.userId)
+                .eq("session_date", today)
+                .single();
+              
+              if (session) {
+                creds.access_token = session.access_token;
+              }
+            }
           } else {
-            creds = sqliteDb.query("SELECT api_key, api_secret, access_token, updated_at FROM credentials WHERE user_id = ?").get(user.userId) as any;
+            creds = sqliteDb.query("SELECT api_key, api_secret, updated_at FROM credentials WHERE user_id = ?").get(user.userId) as any;
+            
+            // Get today's access token from sessions table
+            if (creds) {
+              const session = sqliteDb.query("SELECT access_token FROM sessions WHERE user_id = ? AND session_date = ?").get(user.userId, today) as any;
+              if (session) {
+                creds.access_token = session.access_token;
+              }
+            }
           }
           
           if (!creds) {
@@ -528,22 +766,8 @@ const server = serve({
               kc.setAccessToken(creds.access_token);
               await kc.getProfile(); // This will throw if token is invalid/expired
               tokenValid = true;
-              
-              // Check if token was updated today (tokens expire at midnight IST)
-              if (creds.updated_at) {
-                const updatedDate = new Date(creds.updated_at);
-                const now = new Date();
-                // Convert to IST (UTC+5:30)
-                const istOffset = 5.5 * 60 * 60 * 1000;
-                const istNow = new Date(now.getTime() + istOffset);
-                const istUpdated = new Date(updatedDate.getTime() + istOffset);
-                
-                // Token expires at midnight IST, so if updated date is not today, it's expired
-                if (istNow.toDateString() !== istUpdated.toDateString()) {
-                  tokenExpired = true;
-                  tokenValid = false;
-                }
-              }
+            } else {
+              tokenExpired = true;
             }
           } catch (err: any) {
             tokenValid = false;
@@ -554,7 +778,7 @@ const server = serve({
             credentials: { 
               apiKey: creds.api_key, 
               apiSecret: creds.api_secret, 
-              accessToken: creds.access_token, 
+              accessToken: creds.access_token || null, 
               updatedAt: creds.updated_at 
             },
             tokenValid,
@@ -574,14 +798,16 @@ const server = serve({
         const body = await req.json();
         const { apiKey, apiSecret, accessToken } = body;
 
-        if (!apiKey || !apiSecret || !accessToken) {
-          return new Response(JSON.stringify({ error: "All credentials required" }), {
+        if (!apiKey || !apiSecret) {
+          return new Response(JSON.stringify({ error: "API Key and API Secret are required" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
         try {
+          const today = getTodayIST();
+          
           if (supabase) {
             // Check if credentials exist
             const { data: existing } = await supabase
@@ -591,34 +817,55 @@ const server = serve({
               .single();
             
             if (existing) {
-              // Update
+              // Update API key and secret only (access token is managed in sessions table)
               await supabase
                 .from("credentials")
                 .update({ 
                   api_key: apiKey, 
-                  api_secret: apiSecret, 
-                  access_token: accessToken,
+                  api_secret: apiSecret,
                   updated_at: new Date().toISOString()
                 })
                 .eq("user_id", user.userId);
             } else {
-              // Insert
+              // Insert (access token optional for backward compatibility)
               await supabase
                 .from("credentials")
                 .insert({ 
                   user_id: user.userId,
                   api_key: apiKey, 
-                  api_secret: apiSecret, 
-                  access_token: accessToken 
+                  api_secret: apiSecret,
+                  access_token: accessToken || "" // Keep for backward compatibility
+                });
+            }
+            
+            // If access token is provided, also store it in sessions table
+            if (accessToken) {
+              await supabase
+                .from("sessions")
+                .upsert({
+                  user_id: user.userId,
+                  access_token: accessToken,
+                  session_date: today,
+                  created_at: new Date().toISOString()
+                }, {
+                  onConflict: "user_id,session_date"
                 });
             }
           } else {
             // SQLite fallback
             const existing = sqliteDb.query("SELECT id FROM credentials WHERE user_id = ?").get(user.userId) as any;
             if (existing) {
-              sqliteDb.run("UPDATE credentials SET api_key = ?, api_secret = ?, access_token = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?", apiKey, apiSecret, accessToken, user.userId);
+              sqliteDb.run("UPDATE credentials SET api_key = ?, api_secret = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?", apiKey, apiSecret, user.userId);
             } else {
-              sqliteDb.run("INSERT INTO credentials (user_id, api_key, api_secret, access_token) VALUES (?, ?, ?, ?)", user.userId, apiKey, apiSecret, accessToken);
+              sqliteDb.run("INSERT INTO credentials (user_id, api_key, api_secret, access_token) VALUES (?, ?, ?, ?)", user.userId, apiKey, apiSecret, accessToken || "");
+            }
+            
+            // If access token is provided, also store it in sessions table
+            if (accessToken) {
+              sqliteDb.run(`
+                INSERT OR REPLACE INTO sessions (user_id, access_token, session_date, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+              `, user.userId, accessToken, today);
             }
           }
 
@@ -673,11 +920,12 @@ const server = serve({
         try {
           // Check if credentials exist
           let creds: any = null;
+          const today = getTodayIST();
           
           if (supabase) {
             const { data, error } = await supabase
               .from("credentials")
-              .select("api_key, api_secret, access_token")
+              .select("api_key, api_secret")
               .eq("user_id", user.userId)
               .single();
             
@@ -688,14 +936,42 @@ const server = serve({
               });
             }
             creds = data;
+            
+            // Get today's access token from sessions table
+            const { data: session } = await supabase
+              .from("sessions")
+              .select("access_token")
+              .eq("user_id", user.userId)
+              .eq("session_date", today)
+              .single();
+            
+            if (!session || !session.access_token) {
+              return new Response(JSON.stringify({ error: "Access token not found for today. Please authenticate with Zerodha Kite first." }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+            
+            creds.access_token = session.access_token;
           } else {
-            creds = sqliteDb.query("SELECT api_key, api_secret, access_token FROM credentials WHERE user_id = ?").get(user.userId) as any;
+            creds = sqliteDb.query("SELECT api_key, api_secret FROM credentials WHERE user_id = ?").get(user.userId) as any;
             if (!creds) {
               return new Response(JSON.stringify({ error: "Please set your credentials first" }), {
                 status: 400,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
               });
             }
+            
+            // Get today's access token from sessions table
+            const session = sqliteDb.query("SELECT access_token FROM sessions WHERE user_id = ? AND session_date = ?").get(user.userId, today) as any;
+            if (!session || !session.access_token) {
+              return new Response(JSON.stringify({ error: "Access token not found for today. Please authenticate with Zerodha Kite first." }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+            
+            creds.access_token = session.access_token;
           }
 
           // Check if already running

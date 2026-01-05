@@ -84,8 +84,11 @@
                 <form id="credentials-form" onsubmit="handleSaveCredentials(event)">
                     <input type="text" id="api-key" placeholder="API Key" required>
                     <input type="password" id="api-secret" placeholder="API Secret" required>
-                    <input type="password" id="access-token" placeholder="Access Token" required>
-                    <button type="submit">Save Credentials</button>
+                    <input type="password" id="access-token" placeholder="Access Token (optional - will be generated automatically)" readonly style="background: #f5f5f5; cursor: not-allowed;">
+                    <small style="color: #666; font-size: 12px; display: block; margin-top: -10px; margin-bottom: 15px;">
+                        Access token is managed automatically. Use "Generate Access Token" button above to authenticate.
+                    </small>
+                    <button type="submit">Save API Key & Secret</button>
                 </form>
                 <div id="credentials-error" class="error-message"></div>
                 <div id="credentials-success" class="success-message"></div>
