@@ -105,14 +105,19 @@ function verifyToken(token: string): { userId: number; username: string } | null
 }
 
 // Get today's date in IST (YYYY-MM-DD format)
+// IST is UTC+5:30, so we add 5.5 hours to UTC time to get IST
 function getTodayIST(): string {
-  const now = new Date();
-  // IST is UTC+5:30
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const istTime = new Date(now.getTime() + istOffset);
-  const year = istTime.getUTCFullYear();
-  const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(istTime.getUTCDate()).padStart(2, '0');
+  const now = new Date(); // Current UTC time
+  // IST offset: UTC+5:30 = 5.5 hours = 19,800,000 milliseconds
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  // Add IST offset to get IST time representation
+  const istTimestamp = now.getTime() + istOffsetMs;
+  const istDate = new Date(istTimestamp);
+  // Extract date components (using UTC methods since Date is always UTC internally)
+  // This gives us the date in IST timezone
+  const year = istDate.getUTCFullYear();
+  const month = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(istDate.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
