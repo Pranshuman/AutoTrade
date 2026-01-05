@@ -580,8 +580,6 @@ function updateStrategyUI(status, startedAt = null) {
     const logsSection = document.getElementById('strategy-logs-section');
     const quickStartSection = document.getElementById('quick-start-section');
     const quickStartBtn = document.getElementById('quick-start-btn');
-    const quickStartSection = document.getElementById('quick-start-section');
-    const quickStartBtn = document.getElementById('quick-start-btn');
     
     // Update status display
     statusValue.textContent = status === 'running' ? 'RUNNING' : status === 'stopped' ? 'STOPPED' : 'READY';
