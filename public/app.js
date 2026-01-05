@@ -172,6 +172,7 @@ async function handleLogin() {
             showDashboard();
             loadCredentials();
             checkStrategyStatus();
+            updatePrerequisites();
         }
     } catch (error) {
         errorDiv.textContent = 'Network error. Please try again.';
@@ -355,6 +356,7 @@ async function handleKiteRedirect() {
         setTimeout(() => {
             loadCredentials();
             checkStrategyStatus();
+            updatePrerequisites();
         }, 1000);
         
     } catch (err) {
@@ -374,6 +376,7 @@ async function checkAuth() {
         await loadCredentials();
         showDashboard();
         checkStrategyStatus();
+        updatePrerequisites();
     } catch {
         localStorage.removeItem('authToken');
         authToken = null;
@@ -531,7 +534,7 @@ async function checkStrategyStatus() {
 
         const data = await response.json();
         const status = data.status || 'stopped';
-        updateStrategyUI(status);
+        updateStrategyUI(status, data.startedAt);
 
         // Show/hide tracker based on status
         const trackerSection = document.getElementById('tracker-section');
@@ -550,13 +553,84 @@ async function checkStrategyStatus() {
     }
 }
 
-function updateStrategyUI(status) {
+function updateStrategyUI(status, startedAt = null) {
     const statusValue = document.getElementById('status-value');
-    statusValue.textContent = status.toUpperCase();
+    const statusIcon = document.getElementById('status-icon');
+    const statusDetails = document.getElementById('status-details');
+    const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const startBtnText = document.getElementById('start-btn-text');
+    const stopBtnText = document.getElementById('stop-btn-text');
+    
+    // Update status display
+    statusValue.textContent = status === 'running' ? 'RUNNING' : status === 'stopped' ? 'STOPPED' : 'READY';
     statusValue.className = `status-value ${status}`;
+    
+    // Update icon and details
+    if (status === 'running') {
+        statusIcon.textContent = '🟢';
+        statusDetails.textContent = startedAt 
+            ? `Started at ${new Date(startedAt).toLocaleTimeString()} - Strategy is actively trading`
+            : 'Strategy is actively trading';
+        statusDetails.style.color = '#27ae60';
+        
+        // Button states
+        startBtn.disabled = true;
+        startBtn.style.opacity = '0.5';
+        startBtn.style.cursor = 'not-allowed';
+        stopBtn.disabled = false;
+        stopBtn.style.opacity = '1';
+        stopBtn.style.cursor = 'pointer';
+        if (stopBtnText) stopBtnText.textContent = '⏹️ Stop Strategy';
+    } else if (status === 'stopped') {
+        statusIcon.textContent = '🔴';
+        statusDetails.textContent = 'Strategy is stopped. Click "Start Strategy" to begin trading.';
+        statusDetails.style.color = '#e74c3c';
+        
+        // Button states
+        startBtn.disabled = false;
+        startBtn.style.opacity = '1';
+        startBtn.style.cursor = 'pointer';
+        stopBtn.disabled = true;
+        stopBtn.style.opacity = '0.5';
+        stopBtn.style.cursor = 'not-allowed';
+        if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+    } else {
+        statusIcon.textContent = '⚪';
+        statusDetails.textContent = 'Ready to start. Ensure credentials are valid before starting.';
+        statusDetails.style.color = '#7f8c8d';
+        
+        // Button states
+        startBtn.disabled = false;
+        startBtn.style.opacity = '1';
+        startBtn.style.cursor = 'pointer';
+        stopBtn.disabled = true;
+        stopBtn.style.opacity = '0.5';
+        stopBtn.style.cursor = 'not-allowed';
+        if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+    }
+    
+    // Update prerequisites
+    updatePrerequisites();
+}
 
-    document.getElementById('start-btn').disabled = status === 'running';
-    document.getElementById('stop-btn').disabled = status !== 'running';
+function updatePrerequisites() {
+    const credsStatus = document.getElementById('credentials-status');
+    const prereqCredentials = document.getElementById('prereq-credentials');
+    const prereqToken = document.getElementById('prereq-token');
+    
+    if (credsStatus && prereqCredentials && prereqToken) {
+        const hasCredentials = credsStatus.textContent.includes('✓') || credsStatus.textContent.includes('Valid');
+        const tokenValid = credsStatus.className.includes('has-credentials');
+        
+        prereqCredentials.innerHTML = hasCredentials 
+            ? '✅ <span style="color: #27ae60;">Credentials saved</span>' 
+            : '❌ <span style="color: #e74c3c;">Save API Key & Secret first</span>';
+        
+        prereqToken.innerHTML = tokenValid 
+            ? '✅ <span style="color: #27ae60;">Access token valid</span>' 
+            : '❌ <span style="color: #e74c3c;">Generate access token first</span>';
+    }
 }
 
 let trackerUpdateInterval = null;
@@ -709,6 +783,19 @@ function updateTradesList(trades) {
 async function handleStartStrategy() {
     const errorDiv = document.getElementById('strategy-error');
     const successDiv = document.getElementById('strategy-success');
+    const startBtn = document.getElementById('start-btn');
+    const startBtnText = document.getElementById('start-btn-text');
+    const statusDetails = document.getElementById('status-details');
+
+    // Show loading state
+    if (startBtn) startBtn.disabled = true;
+    if (startBtnText) startBtnText.textContent = '⏳ Starting...';
+    if (statusDetails) {
+        statusDetails.textContent = 'Starting strategy...';
+        statusDetails.style.color = '#3498db';
+    }
+    errorDiv.classList.remove('show');
+    successDiv.classList.remove('show');
 
     try {
         const response = await fetch(`${API_URL}/api/strategy/start`, {
@@ -724,25 +811,58 @@ async function handleStartStrategy() {
             errorDiv.textContent = data.error || 'Failed to start strategy';
             errorDiv.classList.add('show');
             successDiv.classList.remove('show');
+            if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+            if (startBtn) startBtn.disabled = false;
+            if (statusDetails) {
+                statusDetails.textContent = 'Failed to start. Please check credentials and try again.';
+                statusDetails.style.color = '#e74c3c';
+            }
             return;
         }
 
-        successDiv.textContent = 'Strategy started successfully!';
+        successDiv.textContent = '✅ Strategy started successfully! Trading will begin during market hours.';
         successDiv.classList.add('show');
         errorDiv.classList.remove('show');
         
-        updateStrategyUI('running');
-        setTimeout(checkStrategyStatus, 1000);
+        // Update UI immediately
+        updateStrategyUI('running', new Date().toISOString());
+        
+        // Check status again after a moment to get server confirmation
+        setTimeout(checkStrategyStatus, 1500);
     } catch (error) {
-        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.textContent = 'Network error. Please check your connection and try again.';
         errorDiv.classList.add('show');
         successDiv.classList.remove('show');
+        if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+        if (startBtn) startBtn.disabled = false;
+        if (statusDetails) {
+            statusDetails.textContent = 'Connection error. Please try again.';
+            statusDetails.style.color = '#e74c3c';
+        }
     }
 }
 
 async function handleStopStrategy() {
     const errorDiv = document.getElementById('strategy-error');
     const successDiv = document.getElementById('strategy-success');
+    const stopBtn = document.getElementById('stop-btn');
+    const stopBtnText = document.getElementById('stop-btn-text');
+    const statusDetails = document.getElementById('status-details');
+
+    // Confirm before stopping
+    if (!confirm('Are you sure you want to stop the strategy? This will close all open positions.')) {
+        return;
+    }
+
+    // Show loading state
+    if (stopBtn) stopBtn.disabled = true;
+    if (stopBtnText) stopBtnText.textContent = '⏳ Stopping...';
+    if (statusDetails) {
+        statusDetails.textContent = 'Stopping strategy and closing positions...';
+        statusDetails.style.color = '#e67e22';
+    }
+    errorDiv.classList.remove('show');
+    successDiv.classList.remove('show');
 
     try {
         const response = await fetch(`${API_URL}/api/strategy/stop`, {
@@ -758,18 +878,34 @@ async function handleStopStrategy() {
             errorDiv.textContent = data.error || 'Failed to stop strategy';
             errorDiv.classList.add('show');
             successDiv.classList.remove('show');
+            if (stopBtnText) stopBtnText.textContent = '⏹️ Stop Strategy';
+            if (stopBtn) stopBtn.disabled = false;
+            if (statusDetails) {
+                statusDetails.textContent = 'Failed to stop. Please try again.';
+                statusDetails.style.color = '#e74c3c';
+            }
             return;
         }
 
-        successDiv.textContent = 'Strategy stopped successfully!';
+        successDiv.textContent = '✅ Strategy stopped successfully. All positions have been closed.';
         successDiv.classList.add('show');
         errorDiv.classList.remove('show');
         
+        // Update UI immediately
         updateStrategyUI('stopped');
+        
+        // Check status again to confirm
+        setTimeout(checkStrategyStatus, 1000);
     } catch (error) {
-        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.textContent = 'Network error. Please check your connection and try again.';
         errorDiv.classList.add('show');
         successDiv.classList.remove('show');
+        if (stopBtnText) stopBtnText.textContent = '⏹️ Stop Strategy';
+        if (stopBtn) stopBtn.disabled = false;
+        if (statusDetails) {
+            statusDetails.textContent = 'Connection error. Please try again.';
+            statusDetails.style.color = '#e74c3c';
+        }
     }
 }
 

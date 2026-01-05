@@ -4,10 +4,17 @@ import dayjs from "dayjs";
 import { writeFile } from "fs/promises";
 import { resolve } from "path";
 
-// API Credentials
-const apiKey = "gssli7u395tn5in8";
-const apiSecret = "yeq4xu913i50u2d5j5b0wkgqp6cp0ufo";
-const accessToken = "YFgvWwTQS651T2fz9bHaYMxXPZYI3xaG";
+// API Credentials - Read from environment variables (set by server when spawning)
+const apiKey = process.env.KITE_API_KEY || "";
+const apiSecret = process.env.KITE_API_SECRET || "";
+const accessToken = process.env.KITE_ACCESS_TOKEN || "";
+
+// Validate credentials
+if (!apiKey || !apiSecret || !accessToken) {
+    console.error("❌ Missing Kite credentials. Please ensure KITE_API_KEY, KITE_API_SECRET, and KITE_ACCESS_TOKEN are set.");
+    process.exit(1);
+}
+
 const kc = new KiteConnect({ api_key: apiKey });
 
 // Types
@@ -1501,12 +1508,25 @@ async function init() {
     try {
         kc.setAccessToken(accessToken);
         const now = new Date();
-        const todayStr = dayjs().format("YYYY-MM-DD");
+        // Get today's date in IST (YYYY-MM-DD format)
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const istTimestamp = now.getTime() + istOffset;
+        const istDate = new Date(istTimestamp);
+        const todayStr = `${istDate.getUTCFullYear()}-${String(istDate.getUTCMonth() + 1).padStart(2, '0')}-${String(istDate.getUTCDate()).padStart(2, '0')}`;
         
-        sessionStart = new Date(`${todayStr} 09:15:00`);
-        sessionEnd = new Date(`${todayStr} 15:20:00`);
-        entryCutoff = new Date(`${todayStr} 09:20:00`);
-        tradeStartTime = new Date(`${todayStr} 10:00:00`);
+        // Create session times in IST (09:15, 09:20, 10:00, 15:20 IST)
+        // Use ISO string with IST timezone offset (+05:30)
+        const createISTDate = (hour: number, minute: number) => {
+            const hourStr = String(hour).padStart(2, '0');
+            const minStr = String(minute).padStart(2, '0');
+            const istTimeString = `${todayStr}T${hourStr}:${minStr}:00+05:30`;
+            return new Date(istTimeString);
+        };
+        
+        sessionStart = createISTDate(9, 15);   // 09:15 IST
+        entryCutoff = createISTDate(9, 20);    // 09:20 IST
+        tradeStartTime = createISTDate(10, 0); // 10:00 IST
+        sessionEnd = createISTDate(15, 20);    // 15:20 IST
 
         console.log(`Session: ${dayjs(sessionStart).format("HH:mm:ss")} - ${dayjs(sessionEnd).format("HH:mm:ss")}`);
         console.log(`Entry Cutoff: ${dayjs(entryCutoff).format("HH:mm:ss")}`);

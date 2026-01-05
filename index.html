@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AutoTrade - VWAP RSI Strategy</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -97,14 +98,39 @@
             <!-- Strategy Control Section -->
             <div class="card">
                 <h2>⚙️ Strategy Control</h2>
-                <div id="strategy-status" class="status-display">
-                    <span class="status-label">Status:</span>
-                    <span id="status-value" class="status-value">Loading...</span>
+                
+                <!-- Prerequisites Checklist -->
+                <div id="prerequisites-check" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3498db;">
+                    <h3 style="margin-top: 0; color: #2980b9; font-size: 14px;">📋 Prerequisites:</h3>
+                    <div id="prereq-list" style="font-size: 13px; color: #555;">
+                        <div id="prereq-credentials">⏳ Checking credentials...</div>
+                        <div id="prereq-token">⏳ Checking access token...</div>
+                    </div>
                 </div>
-                <div class="button-group">
-                    <button id="start-btn" onclick="handleStartStrategy()" disabled>Start Strategy</button>
-                    <button id="stop-btn" onclick="handleStopStrategy()" disabled>Stop Strategy</button>
+                
+                <!-- Status Display -->
+                <div id="strategy-status" class="status-display" style="margin-bottom: 15px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="status-label">Status:</span>
+                        <span id="status-value" class="status-value">Checking...</span>
+                        <span id="status-icon" style="font-size: 20px;">⏳</span>
+                    </div>
+                    <div id="status-details" style="margin-top: 8px; font-size: 12px; color: #666; font-style: italic;">
+                        Loading status information...
+                    </div>
                 </div>
+                
+                <!-- Action Buttons -->
+                <div class="button-group" style="display: flex; gap: 10px;">
+                    <button id="start-btn" onclick="handleStartStrategy()" disabled style="flex: 1; padding: 12px; font-size: 16px; font-weight: 600;">
+                        <span id="start-btn-text">▶️ Start Strategy</span>
+                    </button>
+                    <button id="stop-btn" onclick="handleStopStrategy()" disabled style="flex: 1; padding: 12px; font-size: 16px; font-weight: 600; background: #e74c3c;">
+                        <span id="stop-btn-text">⏹️ Stop Strategy</span>
+                    </button>
+                </div>
+                
+                <!-- Messages -->
                 <div id="strategy-error" class="error-message"></div>
                 <div id="strategy-success" class="success-message"></div>
             </div>

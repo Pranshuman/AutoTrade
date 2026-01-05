@@ -246,13 +246,21 @@ async function serveStaticFile(path: string): Promise<Response | null> {
   try {
     const filePath = join(process.cwd(), path === "/" ? "index.html" : path);
     const file = await readFile(filePath);
-    const ext = path.split(".").pop()?.toLowerCase();
+    
+    // Determine content type based on file extension
+    let ext = path.split(".").pop()?.toLowerCase();
+    // If path is "/", it's index.html
+    if (path === "/" || path === "/index.html") {
+      ext = "html";
+    }
+    
     const contentType: Record<string, string> = {
       html: "text/html",
       css: "text/css",
       js: "application/javascript",
       json: "application/json",
     };
+    
     return new Response(file, {
       headers: { "Content-Type": contentType[ext || ""] || "text/plain" },
     });
@@ -315,6 +323,15 @@ const server = serve({
       console.log(`  📤 OPTIONS Response status: ${response.status}`);
       console.log(`  📤 OPTIONS Response headers:`, Object.fromEntries(response.headers.entries()));
       return response;
+    }
+
+    // Handle favicon request
+    if (path === "/favicon.ico") {
+      // Return a simple SVG favicon to prevent 404
+      const svgFavicon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📈</text></svg>`;
+      return new Response(svgFavicon, {
+        headers: { "Content-Type": "image/svg+xml" },
+      });
     }
 
     // Static files
@@ -992,13 +1009,14 @@ const server = serve({
           const tracker = strategyTrackers.get(user.userId)!;
           tracker.summary.startedAt = new Date().toISOString();
 
-          // Start strategy in background
-          const strategyProcess = Bun.spawn(["bun", "run", "vwap_rsi_live_strategy_user.ts", String(user.userId)], {
+          // Start strategy in background with user credentials
+          const strategyProcess = Bun.spawn(["bun", "run", "vwap_rsi_live_strategy.ts"], {
             env: {
               ...process.env,
               KITE_API_KEY: creds.api_key,
               KITE_API_SECRET: creds.api_secret,
               KITE_ACCESS_TOKEN: creds.access_token,
+              USER_ID: String(user.userId), // Pass user ID for logging/tracking
             },
             stdout: "pipe",
             stderr: "pipe",
