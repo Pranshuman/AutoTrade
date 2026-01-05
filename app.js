@@ -26,9 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         showAuth();
     }
-    
-    // Set up Kite login URL link
-    setupKiteLoginLink();
+    // Don't call setupKiteLoginLink here - it will be called after credentials are loaded
 });
 
 // Generate new access token - show Kite login step
@@ -38,20 +36,46 @@ async function generateNewAccessToken() {
         return;
     }
     
+    const errorDiv = document.getElementById('credentials-error');
+    const generateBtn = document.getElementById('generate-token-btn');
+    
+    // Disable button while loading
+    if (generateBtn) {
+        generateBtn.disabled = true;
+        generateBtn.textContent = '⏳ Loading...';
+    }
+    
     try {
         const response = await fetch(`${API_URL}/api/kite-login-url`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         
         if (data.loginURL) {
             showKiteLoginStep(data.loginURL);
         } else {
-            throw new Error('Could not get login URL');
+            throw new Error('No login URL in response');
         }
     } catch (error) {
-        alert('Error: Could not generate login URL. Please ensure you are logged in and have saved your API credentials.');
         console.error('Error generating login URL:', error);
+        
+        // Show error message
+        if (errorDiv) {
+            errorDiv.textContent = `Error: ${error.message || 'Could not generate login URL'}. Please ensure you have saved your API Key and Secret first.`;
+            errorDiv.classList.add('show');
+        }
+        
+        // Re-enable button
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.textContent = '🔐 Generate Access Token (Required)';
+        }
     }
 }
 
@@ -392,31 +416,59 @@ async function loadCredentials() {
             }
             
             const statusBadge = document.getElementById('credentials-status');
+            const generateBtn = document.getElementById('generate-token-btn');
+            const errorDiv = document.getElementById('credentials-error');
+            const successDiv = document.getElementById('credentials-success');
+            
             if (data.tokenValid) {
                 statusBadge.textContent = '✓ Credentials Valid';
                 statusBadge.className = 'status-badge has-credentials';
                 document.getElementById('start-btn').disabled = false;
+                
+                // Hide error messages
+                if (errorDiv) errorDiv.classList.remove('show');
+                if (successDiv) {
+                    successDiv.textContent = 'Access token is valid for today.';
+                    successDiv.classList.add('show');
+                }
+                
+                // Update button text
+                if (generateBtn) {
+                    generateBtn.textContent = '🔄 Regenerate Access Token';
+                    generateBtn.style.background = '#95a5a6';
+                }
             } else {
-                statusBadge.textContent = '⚠ Access Token Expired - Please Re-authenticate';
+                statusBadge.textContent = '⚠ Access Token Missing or Expired';
                 statusBadge.className = 'status-badge no-credentials';
                 document.getElementById('start-btn').disabled = true;
                 
                 // Show message to re-authenticate
-                const errorDiv = document.getElementById('credentials-error');
                 if (errorDiv) {
-                    errorDiv.textContent = 'Your access token has expired. Please click "Generate Access Token" to re-authenticate.';
+                    errorDiv.textContent = '⚠️ Your access token is missing or expired. Click "Generate Access Token" below to authenticate with Zerodha Kite.';
                     errorDiv.classList.add('show');
                 }
+                if (successDiv) successDiv.classList.remove('show');
+                
+                // Update button to be more prominent
+                if (generateBtn) {
+                    generateBtn.textContent = '🔐 Generate Access Token (Required)';
+                    generateBtn.style.background = '#e74c3c';
+                    generateBtn.style.fontWeight = 'bold';
+                }
             }
-            
-            // Update Kite login URL
-            setupKiteLoginLink();
         } else {
             const statusBadge = document.getElementById('credentials-status');
             statusBadge.textContent = '⚠ No Credentials Set';
             statusBadge.className = 'status-badge no-credentials';
             
             document.getElementById('start-btn').disabled = true;
+            
+            // Show message to save credentials first
+            const errorDiv = document.getElementById('credentials-error');
+            if (errorDiv) {
+                errorDiv.textContent = 'Please save your API Key and Secret first, then generate access token.';
+                errorDiv.classList.add('show');
+            }
         }
     } catch (error) {
         console.error('Error loading credentials:', error);
