@@ -444,7 +444,7 @@ async function loadCredentials() {
                 // Show warning message
                 if (errorDiv) {
                     errorDiv.textContent = '⚠️ Your access token is missing or expired. Click "Generate Access Token" below to authenticate with Zerodha Kite.';
-                    errorDiv.classList.add('show');
+                errorDiv.classList.add('show');
                 }
                 if (successDiv) successDiv.classList.remove('show');
                 
@@ -631,13 +631,28 @@ function updateStrategyUI(status, startedAt = null) {
         statusDetails.style.color = '#e74c3c';
         
         // Button states
-        startBtn.disabled = false;
-        startBtn.style.opacity = '1';
-        startBtn.style.cursor = 'pointer';
-        stopBtn.disabled = true;
-        stopBtn.style.opacity = '0.5';
-        stopBtn.style.cursor = 'not-allowed';
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.style.opacity = '1';
+            startBtn.style.cursor = 'pointer';
+        }
+        if (stopBtn) {
+            stopBtn.disabled = true;
+            stopBtn.style.opacity = '0.5';
+            stopBtn.style.cursor = 'not-allowed';
+        }
         if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+        
+        // Enable quick start button if credentials are valid
+        if (quickStartBtn && quickStartSection) {
+            const credsStatus = document.getElementById('credentials-status');
+            if (credsStatus && credsStatus.className.includes('has-credentials')) {
+                quickStartSection.style.display = 'block';
+                quickStartBtn.disabled = false;
+                quickStartBtn.style.opacity = '1';
+                quickStartBtn.style.cursor = 'pointer';
+            }
+        }
         
         // Stop polling logs
         stopLogsPolling();
@@ -647,13 +662,28 @@ function updateStrategyUI(status, startedAt = null) {
         statusDetails.style.color = '#7f8c8d';
         
         // Button states
-        startBtn.disabled = false;
-        startBtn.style.opacity = '1';
-        startBtn.style.cursor = 'pointer';
-        stopBtn.disabled = true;
-        stopBtn.style.opacity = '0.5';
-        stopBtn.style.cursor = 'not-allowed';
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.style.opacity = '1';
+            startBtn.style.cursor = 'pointer';
+        }
+        if (stopBtn) {
+            stopBtn.disabled = true;
+            stopBtn.style.opacity = '0.5';
+            stopBtn.style.cursor = 'not-allowed';
+        }
         if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
+        
+        // Enable quick start button if credentials are valid
+        if (quickStartBtn && quickStartSection) {
+            const credsStatus = document.getElementById('credentials-status');
+            if (credsStatus && credsStatus.className.includes('has-credentials')) {
+                quickStartSection.style.display = 'block';
+                quickStartBtn.disabled = false;
+                quickStartBtn.style.opacity = '1';
+                quickStartBtn.style.cursor = 'pointer';
+            }
+        }
         
         // Stop polling logs
         stopLogsPolling();
@@ -932,10 +962,15 @@ async function handleStartStrategy() {
     const startBtn = document.getElementById('start-btn');
     const startBtnText = document.getElementById('start-btn-text');
     const statusDetails = document.getElementById('status-details');
+    const quickStartBtn = document.getElementById('quick-start-btn');
 
     // Show loading state
     if (startBtn) startBtn.disabled = true;
     if (startBtnText) startBtnText.textContent = '⏳ Starting...';
+    if (quickStartBtn) {
+        quickStartBtn.disabled = true;
+        quickStartBtn.textContent = '⏳ Starting...';
+    }
     if (statusDetails) {
         statusDetails.textContent = 'Starting strategy...';
         statusDetails.style.color = '#3498db';
@@ -959,6 +994,10 @@ async function handleStartStrategy() {
             successDiv.classList.remove('show');
             if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
             if (startBtn) startBtn.disabled = false;
+            if (quickStartBtn) {
+                quickStartBtn.disabled = false;
+                quickStartBtn.textContent = '▶️ Start Strategy';
+            }
             if (statusDetails) {
                 statusDetails.textContent = 'Failed to start. Please check credentials and try again.';
                 statusDetails.style.color = '#e74c3c';
@@ -981,6 +1020,10 @@ async function handleStartStrategy() {
         successDiv.classList.remove('show');
         if (startBtnText) startBtnText.textContent = '▶️ Start Strategy';
         if (startBtn) startBtn.disabled = false;
+        if (quickStartBtn) {
+            quickStartBtn.disabled = false;
+            quickStartBtn.textContent = '▶️ Start Strategy';
+        }
         if (statusDetails) {
             statusDetails.textContent = 'Connection error. Please try again.';
             statusDetails.style.color = '#e74c3c';
