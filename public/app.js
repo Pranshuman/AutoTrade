@@ -635,9 +635,16 @@ let lastLogCount = 0;
 
 function startLogsPolling() {
     if (logsPollInterval) return; // Already polling
+    if (!authToken) return; // No auth token, can't fetch logs
     
     updateLogs(); // Initial load
-    logsPollInterval = setInterval(updateLogs, 2000); // Poll every 2 seconds
+    logsPollInterval = setInterval(() => {
+        if (authToken) {
+            updateLogs();
+        } else {
+            stopLogsPolling(); // Stop if token is lost
+        }
+    }, 2000); // Poll every 2 seconds
 }
 
 function stopLogsPolling() {
@@ -648,10 +655,25 @@ function stopLogsPolling() {
 }
 
 async function updateLogs() {
+    if (!authToken) {
+        console.warn('No auth token available for logs');
+        return;
+    }
+    
     try {
         const response = await fetch(`${API_URL}/api/strategy/logs?limit=100`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                // Token expired or invalid, stop polling
+                console.warn('Unauthorized - stopping logs polling');
+                stopLogsPolling();
+                return;
+            }
+            throw new Error(`HTTP ${response.status}`);
+        }
         
         const data = await response.json();
         const logsContent = document.getElementById('strategy-logs-content');
@@ -1005,9 +1027,16 @@ let lastLogCount = 0;
 
 function startLogsPolling() {
     if (logsPollInterval) return; // Already polling
+    if (!authToken) return; // No auth token, can't fetch logs
     
     updateLogs(); // Initial load
-    logsPollInterval = setInterval(updateLogs, 2000); // Poll every 2 seconds
+    logsPollInterval = setInterval(() => {
+        if (authToken) {
+            updateLogs();
+        } else {
+            stopLogsPolling(); // Stop if token is lost
+        }
+    }, 2000); // Poll every 2 seconds
 }
 
 function stopLogsPolling() {
@@ -1018,10 +1047,25 @@ function stopLogsPolling() {
 }
 
 async function updateLogs() {
+    if (!authToken) {
+        console.warn('No auth token available for logs');
+        return;
+    }
+    
     try {
         const response = await fetch(`${API_URL}/api/strategy/logs?limit=100`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                // Token expired or invalid, stop polling
+                console.warn('Unauthorized - stopping logs polling');
+                stopLogsPolling();
+                return;
+            }
+            throw new Error(`HTTP ${response.status}`);
+        }
         
         const data = await response.json();
         const logsContent = document.getElementById('strategy-logs-content');
