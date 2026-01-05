@@ -95,6 +95,10 @@ let peEntryPending = false;
 let ceExitPending = false;
 let peExitPending = false;
 
+// Stop loss tracking
+let stopLossCount = 0;
+const maxStopLossesPerDay = 4;
+
 // Trade log
 const liveTrades: LiveTrade[] = [];
 
@@ -442,6 +446,11 @@ async function getLiveData(): Promise<{ data: LiveData, ceCandles: Candle[], peC
 async function checkEntryConditions(data: LiveData, ceCandles: Candle[], peCandles: Candle[]) {
     const now = new Date();
     if (now < tradeStartTime || now >= sessionEnd) return;
+    
+    // Don't allow new entries if daily stop loss limit is reached
+    if (stopLossCount >= maxStopLossesPerDay) {
+        return;
+    }
 
     if (ceCandles.length < 1 || peCandles.length < 1) return;
 
@@ -461,7 +470,8 @@ async function checkEntryConditions(data: LiveData, ceCandles: Candle[], peCandl
     // Entry condition: Price must be between VWAP - 10 and VWAP - 5
     // IMPORTANT: Both entry conditions check for open positions to prevent interference
     // Use the latest VWAP from getCurrentPrices() after it's been recalculated
-    if (!cePosition.isOpen && !ceEntryPending && isEndOf5Min && currentCeCandle.date !== lastProcessed5MinCandle_CE) {
+    // Don't allow new entries if daily stop loss limit is reached
+    if (!cePosition.isOpen && !ceEntryPending && isEndOf5Min && currentCeCandle.date !== lastProcessed5MinCandle_CE && stopLossCount < maxStopLossesPerDay) {
         // Fetch latest VWAP and prices to check entry condition with most current values
         try {
             const latestData = await getCurrentPrices();
@@ -498,7 +508,8 @@ async function checkEntryConditions(data: LiveData, ceCandles: Candle[], peCandl
     // Entry condition: Price must be between VWAP - 10 and VWAP - 5
     // IMPORTANT: Both entry conditions check for open positions to prevent interference
     // Use the latest VWAP from getCurrentPrices() after it's been recalculated
-    if (!pePosition.isOpen && !peEntryPending && isEndOf5Min && currentPeCandle.date !== lastProcessed5MinCandle_PE) {
+    // Don't allow new entries if daily stop loss limit is reached
+    if (!pePosition.isOpen && !peEntryPending && isEndOf5Min && currentPeCandle.date !== lastProcessed5MinCandle_PE && stopLossCount < maxStopLossesPerDay) {
         // Fetch latest VWAP and prices to check entry condition with most current values
         try {
             const latestData = await getCurrentPrices();
@@ -586,7 +597,18 @@ async function checkPriceBasedExitConditions(liveData: LiveData, now: string) {
         }
         
         if (isStopLoss) {
+            stopLossCount++;
             console.log(`[${now}] ⚡⚡⚡ CE STOP LOSS TRIGGERED ⚡⚡⚡ - Price ${liveData.cePrice.toFixed(2)} is ${priceDiff.toFixed(2)} points above entry ${cePosition.entryPrice.toFixed(2)} (threshold: ${stopLossPoints}) - Executing immediately...`);
+            console.log(`[${now}] 📊 Stop Loss Count: ${stopLossCount}/${maxStopLossesPerDay}`);
+            
+            // Check if we've hit the daily stop loss limit
+            if (stopLossCount >= maxStopLossesPerDay) {
+                console.log(`\n${"=".repeat(80)}`);
+                console.log(`🛑 DAILY STOP LOSS LIMIT REACHED (${stopLossCount}/${maxStopLossesPerDay})`);
+                console.log(`🛑 Trading will stop for the day after this exit`);
+                console.log(`${"=".repeat(80)}\n`);
+            }
+            
             // Fetch latest prices immediately before executing to ensure we use the most current price
             try {
                 const latestData = await getCurrentPrices();
@@ -596,6 +618,16 @@ async function checkPriceBasedExitConditions(liveData: LiveData, now: string) {
                 // Fallback to using the original liveData if fetching fails
                 await executeExit("CE", liveData.cePrice, `Price Exit (Stop Loss): Price ${liveData.cePrice.toFixed(2)} is ${priceDiff.toFixed(2)} points above entry ${cePosition.entryPrice.toFixed(2)}`);
             }
+            
+            // Stop trading if limit reached
+            if (stopLossCount >= maxStopLossesPerDay) {
+                isTradingActive = false;
+                console.log(`\n${"=".repeat(80)}`);
+                console.log(`🛑 TRADING STOPPED FOR THE DAY`);
+                console.log(`🛑 Reason: ${stopLossCount} stop losses hit (limit: ${maxStopLossesPerDay})`);
+                console.log(`${"=".repeat(80)}\n`);
+            }
+            
             return;
         }
         
@@ -647,7 +679,18 @@ async function checkPriceBasedExitConditions(liveData: LiveData, now: string) {
         }
         
         if (isStopLoss) {
+            stopLossCount++;
             console.log(`[${now}] ⚡⚡⚡ PE STOP LOSS TRIGGERED ⚡⚡⚡ - Price ${liveData.pePrice.toFixed(2)} is ${priceDiff.toFixed(2)} points above entry ${pePosition.entryPrice.toFixed(2)} (threshold: ${stopLossPoints}) - Executing immediately...`);
+            console.log(`[${now}] 📊 Stop Loss Count: ${stopLossCount}/${maxStopLossesPerDay}`);
+            
+            // Check if we've hit the daily stop loss limit
+            if (stopLossCount >= maxStopLossesPerDay) {
+                console.log(`\n${"=".repeat(80)}`);
+                console.log(`🛑 DAILY STOP LOSS LIMIT REACHED (${stopLossCount}/${maxStopLossesPerDay})`);
+                console.log(`🛑 Trading will stop for the day after this exit`);
+                console.log(`${"=".repeat(80)}\n`);
+            }
+            
             // Fetch latest prices immediately before executing to ensure we use the most current price
             try {
                 const latestData = await getCurrentPrices();
@@ -657,6 +700,16 @@ async function checkPriceBasedExitConditions(liveData: LiveData, now: string) {
                 // Fallback to using the original liveData if fetching fails
                 await executeExit("PE", liveData.pePrice, `Price Exit (Stop Loss): Price ${liveData.pePrice.toFixed(2)} is ${priceDiff.toFixed(2)} points above entry ${pePosition.entryPrice.toFixed(2)}`);
             }
+            
+            // Stop trading if limit reached
+            if (stopLossCount >= maxStopLossesPerDay) {
+                isTradingActive = false;
+                console.log(`\n${"=".repeat(80)}`);
+                console.log(`🛑 TRADING STOPPED FOR THE DAY`);
+                console.log(`🛑 Reason: ${stopLossCount} stop losses hit (limit: ${maxStopLossesPerDay})`);
+                console.log(`${"=".repeat(80)}\n`);
+            }
+            
             return;
         }
         
@@ -1341,7 +1394,8 @@ async function startDataFetcher() {
                         // Condition: No open position AND previous price >= VWAP - 10 AND current price < VWAP - 10
                         // IMPORTANT: Both entry conditions check for open positions to prevent interference
                         // CE Entry: Price crosses below VWAP - 10
-                        if (!cePosition.isOpen && !ceEntryPending && cePreviousPrice3s !== null && cePreviousVwap3s !== null) {
+                        // Don't allow new entries if daily stop loss limit is reached
+                        if (!cePosition.isOpen && !ceEntryPending && cePreviousPrice3s !== null && cePreviousVwap3s !== null && stopLossCount < maxStopLossesPerDay) {
                             const previousLowerBound = cePreviousVwap3s - 10;
                             const currentLowerBound = data.ceVwap - 10;
                             
@@ -1355,11 +1409,14 @@ async function startDataFetcher() {
                                     console.log(`[${timeStr}] ⚠️ CE Instant entry signal IGNORED - Position already open or entry pending`);
                                 }
                             }
+                        } else if (stopLossCount >= maxStopLossesPerDay) {
+                            // Silently skip entry if stop loss limit reached (to avoid log spam)
                         }
                         
                         // PE Entry: Price crosses below VWAP - 10
                         // IMPORTANT: Both entry conditions check for open positions to prevent interference
-                        if (!pePosition.isOpen && !peEntryPending && pePreviousPrice3s !== null && pePreviousVwap3s !== null) {
+                        // Don't allow new entries if daily stop loss limit is reached
+                        if (!pePosition.isOpen && !peEntryPending && pePreviousPrice3s !== null && pePreviousVwap3s !== null && stopLossCount < maxStopLossesPerDay) {
                             const previousLowerBound = pePreviousVwap3s - 10;
                             const currentLowerBound = data.peVwap - 10;
                             
@@ -1373,6 +1430,8 @@ async function startDataFetcher() {
                                     console.log(`[${timeStr}] ⚠️ PE Instant entry signal IGNORED - Position already open or entry pending`);
                                 }
                             }
+                        } else if (stopLossCount >= maxStopLossesPerDay) {
+                            // Silently skip entry if stop loss limit reached (to avoid log spam)
                         }
                         
                         // Check exit conditions (stop loss and VWAP reclaim) - performed every 3 seconds
